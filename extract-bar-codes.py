@@ -9,7 +9,13 @@ if len(sys.argv) != 2:
 # first and only command line argument is the fastq.gz file to process
 fastq_filename = sys.argv[1]
 
-# create empty nested dictionary for counts
+# constants
+umi_start = 0
+umi_length = 16
+well_id_start = 16
+well_id_length = 8
+
+# create empty dictionary for counts
 counts = {}
 
 # Go through FASTQ, one four-line block at a time
@@ -20,7 +26,7 @@ with gzip.open(fastq_filename, 'r') as fastq_file:
             break
         if seq_id_line[0] != '@':
             sys.exit("Expected first line of a read, beginning with @. '" + seq_id_line[0] + "' seen. Exiting.")
-        sequence = fastq_file.readline().decode('ascii').rstrip()
+        sequence: str = fastq_file.readline().decode('ascii').rstrip()
         plus_line: str = fastq_file.readline().decode('ascii').rstrip()
         if plus_line[0] != '+':
             sys.exit("Expected third line of a read, beginning with '+'. '" + seq_id_line[0] + "' seen. Exiting.")
@@ -29,8 +35,8 @@ with gzip.open(fastq_filename, 'r') as fastq_file:
         if amplicon_match == None:
             sys.exit('No amplicon ID found at end of sequence ID line:\n' + seq_id_line + '\nExiting.')
         amplicon_id: str = amplicon_match.group(1)
-        umi = sequence[0:15]
-        well_id = sequence[16:23]
+        umi = sequence[umi_start:(umi_start + umi_length - 1)]
+        well_id = sequence[well_id_start:(well_id_start + well_id_length - 1)]
         counts_key = umi + ':' + well_id + ':' + amplicon_id
         if counts_key in counts:
             counts[counts_key] += 1
