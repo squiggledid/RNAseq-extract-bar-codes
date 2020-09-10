@@ -134,3 +134,9 @@ dmypy.json
 
 *.gz
 .Rproj.user
+
+.Rhistory
+
+*.Rproj
+
+ID_Trie_working.py

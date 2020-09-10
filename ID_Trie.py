@@ -98,7 +98,31 @@ class ID_Trie(object):
         else:
             # print('Not in trie.\n')
             return [] # if is not in trie
-    
+
+    def full_query_dfs(self, node, word, partial_result):
+        """Do depth first search until we either reach an end node (meaning
+        have a match), or cannot find the next node (meaning the initial query
+        word is not in the trie)
+        """
+            
+        # print('word: ', word)
+        # print('node.char: ', node.char)
+        # print('partial_result: ', partial_result)
+
+        if node.is_end:
+            # print('Found end.\n')
+            return (partial_result + node.char, node.counter) # Success!
+        if len(word) < 1:
+            # print('Empty word.\n')
+            return[] # ran out of characters before finding a match
+
+        char = word[0]
+        if char in node.children:
+            return self.full_query_dfs(node.children[char], word[1:], partial_result + node.char)
+        else:
+            # print('Not in trie.\n')
+            return [] # if is not in trie
+
     def full_query(self, word):
         """Given an input (a word), retrieve that word from the trie 
         """
@@ -115,51 +139,71 @@ class ID_Trie(object):
         
         # Traverse the trie to find the id
         return self.full_query_dfs(node, word[1:], '')
-
-    def prefix_query(self, prefix):
-        """Given an input (a prefix), retrieve all words stored in
-        the trie with that prefix, sort the words by the number of 
-        times they have been inserted
-        """
-        # Use a variable within the class to keep all possible outputs
-        # As there can be more than one word with such prefix
-        self.output = []
-        node = self.root
         
-        # Check if the prefix is in the trie
-        for char in prefix:
-            if char in node.children:
-                node = node.children[char]
-            else:
-                # cannot find the prefix, return empty list
-                return []
-        
-        # Traverse the trie to get all candidates
-        self.depth_first_search(node, prefix[:-1])
-
-        # Sort the results in reverse order and return
-        return sorted(self.output, key=lambda prefix: prefix[1], reverse=True)
-
-    def full_query_dfs(self, node, word, partial_result):
-        """Do depth first search until we either reach an end node (meaning
+    def full_query_dfs_with_errors(self, node, query_word, partial_result, num_errors, max_errors, level):
+        """Do depth first searches until we either reach an end node (meaning
         have a match), or cannot find the next node (meaning the initial query
         word is not in the trie)
         """
-            
-        print('word: ', word)
-        print('node.char: ', node.char)
-        print('partial_result: ', partial_result)
-
+        # print('\t'*level, 'query_word: ', query_word)
+        # print('\t'*level, 'node.char: ', node.char)
+        # print('\t'*level, 'partial_result: ', partial_result)
+        # print('\t'*level, 'num_errors: ', num_errors)
+        # print('\t'*level, 'max_errors: ', max_errors, '\n')
+        
+        if num_errors > max_errors:
+            # print('\t'*level, 'Too many errors\n')
+            return
+        
         if node.is_end:
-            print('Found end.\n')
-            return (partial_result + node.char, node.counter) # Success!
-        if len(word) < 1:
-            print('Empty word.\n')
-            return[] # ran out of characters before finding a match
+            # print('\t'*level, 'Found end.\n')
+            self.result[partial_result] = {
+                'count': node.counter,
+                'num_errors': num_errors
+            }
+            return
+            
+        if len(query_word) < 1:
+            # print('\t'*level, 'Empty word.\n')
+            return
 
-        char = word[0]
-        if char in node.children:
-            return self.full_query_dfs(node.children[char], word[1:], partial_result + node.char)
-        else:
-            print('Not in trie.\n')
-            return [] # if is not in trie
+        query_char = query_word[0]
+        for char in node.children:
+            # print('\t'*level, 'Level: ', level, 'char: ', char, '\n')
+            if char != query_char:
+                error_increment = 1
+            else:
+                error_increment = 0
+            self.full_query_dfs_with_errors(
+                node = node.children[char],
+                query_word = query_word[1:],
+                partial_result = partial_result + char,
+                num_errors = num_errors + error_increment,
+                max_errors = max_errors,
+                level = level + 1)
+
+    def full_query_with_errors(self, word, max_errors):
+        """Given an input (a word), retrieve all words that match that word from the trie,
+        with max_errors allowed
+        """
+        
+        # print('word: ', word, '\n')
+        
+        query_char = word[0]
+        num_errors = 0
+        self.result = {}
+        level = 0
+        for char in self.root.children:
+            # print('Level: ', level, 'char: ', char, '\n')
+            if char != query_char:
+                error_increment = 1
+            else:
+                error_increment = 0
+            self.full_query_dfs_with_errors(
+                node = self.root.children[char],
+                query_word = word[1:],
+                partial_result = char,
+                num_errors = num_errors + error_increment,
+                max_errors = max_errors,
+                level = level + 1)
+        return self.result
