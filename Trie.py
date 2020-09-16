@@ -1,7 +1,7 @@
 import sys
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
-sys.path.append(project_dir)
+sys.path.insert(0, project_dir)
 
 from TrieNode import TrieNode # TODO learn the proper Python way to do this
 

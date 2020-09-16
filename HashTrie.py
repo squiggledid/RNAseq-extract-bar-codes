@@ -1,7 +1,7 @@
-# import sys
+import sys
 
-# project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
-# sys.path.append(project_dir)
+project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
+sys.path.insert(0, project_dir)
 
 from Trie import Trie
 
@@ -44,3 +44,7 @@ class HashTrie(Trie):
       return self.full_query(word)
     else:
       return super().full_query_with_errors(word, max_errors) # TODO do we need to pass self? I would think not.
+
+  def contains(self, word):
+    return word in self.entries
+  
