@@ -29,6 +29,7 @@ record_read(UMIs[0], Well_IDs[0], Amplicon_IDs[0])
 record_read(UMIs[0], Well_IDs[1], Amplicon_IDs[0])
 record_read(UMIs[1], Well_IDs[1], Amplicon_IDs[1])
 record_read(UMIs[6], Well_IDs[1], Amplicon_IDs[1])
+record_read(UMIs[6], Well_IDs[1], Amplicon_IDs[1])
 
 result = umi_trie.full_query_with_errors(UMIs[0], 8)
 for umi_id in result.keys():

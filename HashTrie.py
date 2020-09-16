@@ -43,7 +43,7 @@ class HashTrie(Trie):
     if max_errors == 0:
       return self.full_query(word)
     else:
-      return super().full_query_with_errors(word, max_errors) # TODO do we need to pass self? I would think not.
+      return super().full_query_with_errors(word, max_errors)
 
   def contains(self, word):
     return word in self.entries
