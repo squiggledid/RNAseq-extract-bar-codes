@@ -3,9 +3,10 @@
 import sys
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
-sys.path.append(project_dir)
+sys.path.insert(0, project_dir)
 
-from ID_Trie import ID_Trie # TODO learn the proper Python way to do this
+# from Trie import Trie
+from HashTrie import HashTrie
 
 ID1 = "ACACACAC"
 ID2 = "ACACAGAC"
@@ -15,7 +16,7 @@ ID5 = "ABCDEFGH"
 ID6 = "DEFGHIJK"
 ID7 = "BCDEFGHI"
 
-IDs = ID_Trie()
+IDs = HashTrie()
 
 IDs.insert(ID1)
 IDs.insert(ID1)
