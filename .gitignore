@@ -142,3 +142,5 @@ dmypy.json
 ID_Trie_working.py
 
 extract-bar-codes-incremental-cluster-silly.py
+
+*.pkl
