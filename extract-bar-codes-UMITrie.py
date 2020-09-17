@@ -58,7 +58,7 @@ with gzip.open(fastq_filename, 'r') as fastq_file:
 
 # save UMITrie data structure with pickle
 umi_trie_filename = fastq_filename + '_UMIHashTrie.pkl'
-print(f'Saving UMIHashTrie to %s...', umi_trie_filename)
+print(f'Saving UMIHashTrie to %s...' % umi_trie_filename)
 umi_trie_file = open(umi_trie_filename, 'wb')
 pickle.dump(umi_trie, umi_trie_file)
 umi_trie_file.close()
