@@ -45,7 +45,7 @@ class UMIHashTrie(HashTrie):
                 'trie_object': node.trie_object,
                 'num_errors': num_errors
             }
-            return True
+            return True # match found so trigger destruction of this node
             
         if len(query_word) < 1:
             #print('\t'*level, 'Empty word.\n')
@@ -71,6 +71,7 @@ class UMIHashTrie(HashTrie):
         #print('\t'*level, 'Tokens to destroy:', tokens_to_destroy)
         for token in tokens_to_destroy:
           del node.children[token]
+        return(not bool(node.children)) # return true if this node has no children, and thus should be destroyed
 
     def full_query_with_errors(self, word, max_errors, destructive = False):
         """Given an input (a word), retrieve all words that match that word from the trie,
