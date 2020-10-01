@@ -1,4 +1,6 @@
-counts_filename <- '/Users/davids/OneDrive - The University of Melbourne/WEHI Rory CoVid19 RNA/DB CloudStor 20200812/Standard_R1.fastq.gz_UMIHashTrie.pkl_UMI-counts.csv'
+project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
+# counts_filename <- '/Users/davids/OneDrive - The University of Melbourne/WEHI Rory CoVid19 RNA/DB CloudStor 20200812/Standard_R1.fastq.gz_UMIHashTrie.pkl_UMI-counts.csv'
+counts_filename <- file.path(project_dir, 'Multiplex_Virus_30_R1.fastq.gz_UMIHashTrie.pkl_UMI-counts.csv')
 counts <- read.csv(file = counts_filename, header = FALSE)
 colnames(counts) <- c('UMI', 'count')
 

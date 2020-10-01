@@ -10,7 +10,10 @@ sys.path.insert(0, project_dir)
 from UMIHashTrie import UMIHashTrie
 from UMIData import UMIData
 
-umi_trie_filename = project_dir + '/Standard_R1.fastq.gz_UMIHashTrie.pkl'
+if len(sys.argv) != 2:
+    sys.exit('A single command line argument specifying the umi-trie .pkl file to process is required. Exiting.')
+# first and only command line argument is the fastq.gz file to process
+umi_trie_filename = sys.argv[1]
 
 # load UMIHashTrie from file
 umi_trie_file = open(umi_trie_filename, 'rb')
@@ -22,7 +25,7 @@ sorted_umis = sorted(umi_trie.entries.items(), key = lambda x : x[1].count, reve
 
 # Example query
 matches = umi_trie.full_query_with_errors(sorted_umis[0][0], 1)
-sorted_matches = [v for k, v in sorted(matches.items(), key = lambda x : x[1]['trie_object'].count, reverse = True)]
+sorted_matches = sorted(matches.values(), key = lambda x : x['trie_object'].count, reverse = True)
 for match in sorted_matches:
   print(f'Num match errors: ', match['num_errors'])
   print(match['trie_object'])
@@ -72,7 +75,7 @@ else:
   max_row = len(sorted_umis)
 # max_row = 2 # test
 dist_headers = ['dist' + str(x) for x in range(1, max_neighbours + 1)]
-num_neighbours_filename = umi_trie_filename + '_UMI-num-neighbours-8_destructive.csv'
+num_neighbours_filename = umi_trie_filename + '_UMI-num-neighbours-' + str(max_neighbours) + '_destructive.csv'
 num_neighbours_file = open(num_neighbours_filename, 'w')
 # print header
 num_neighbours_file.write('UMI,count,' + ','.join(dist_headers) + '\n')

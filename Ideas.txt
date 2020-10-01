@@ -1,3 +1,2 @@
 Ideas:
 
-* Have a destructive search of the trie so that items remove themselves once they have been found. Use return value in recursion as it works back up to the root.

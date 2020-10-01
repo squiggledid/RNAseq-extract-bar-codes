@@ -74,9 +74,9 @@ class UMIHashTrie(HashTrie):
         return(not bool(node.children)) # return true if this node has no children, and thus should be destroyed
 
     def full_query_with_errors(self, word, max_errors, destructive = False):
-        """Given an input (a word), retrieve all words that match that word from the trie,
+        """Given a a query word, retrieve all entries that match the query from the trie,
         with max_errors allowed.
-        When a word is matched according to the criterion, it is removed from the trie
+        if destructive is True, when a word is matched (even inexactly), it is removed from the trie.
         """
         
         #print('word: ', word, '\n')
