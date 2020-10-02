@@ -7,8 +7,7 @@ import pickle
 import collections
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
-import textdistance
-import Levenshtein
+import Levenshtein # By far the fastest library tried for this - including for Hamming distance. Trued textdistance, scipy.spatial.distance.hamming
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
 sys.path.insert(0, project_dir)
@@ -50,11 +49,10 @@ umi_trie = None # make memory available to GC
 # compute distance matrices for UMIs, and save them to .npy files
 umis_array = np.array(umis).reshape(-1, 1)[1:max_row, ] # we need a 2D array for pdist
 log(f'Computing UMI Hamming distance matrix for %d UMIs' % max_row)
-umi_hamming_distance_matrix = pdist(umis_array, lambda umi1, umi2 : textdistance.hamming(umi1[0], umi2[0])) # need to wrap the distance function
+umi_hamming_distance_matrix = pdist(umis_array, lambda umi1, umi2 : Levenshtein.hamming(umi1[0], umi2[0])) # need to wrap the distance function
 np.save(umi_trie_filename + '_hamming.npy', squareform(umi_hamming_distance_matrix))
 umi_hamming_distance_matrix = None # make memory available to GC
 log(f'Computing UMI Levenshtein distance matrix for %d UMIs' % max_row)
-# umi_levenshtein_distance_matrix = pdist(umis_array, lambda umi1, umi2 : textdistance.levenshtein(umi1[0], umi2[0])) # need to wrap the distance function
 umi_levenshtein_distance_matrix = pdist(umis_array, lambda umi1, umi2 : Levenshtein.distance(umi1[0], umi2[0])) # need to wrap the distance function
 np.save(umi_trie_filename + '_levenshtein.npy', squareform(umi_levenshtein_distance_matrix))
 umi_levenshtein_distance_matrix = None # make memory available to GC
