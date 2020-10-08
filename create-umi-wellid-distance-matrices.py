@@ -38,10 +38,18 @@ umi_counts = [(x[0], x[1].count) for x in sorted_umis]
 
 # find the last row with at least min_count UMI
 min_count = 100 # from eyeballing a plot, at present
+max_row_limit = 40000
 if umi_counts[-1][1] < min_count:
   max_row = [n for n, x in enumerate( [x[1] for x in umi_counts] ) if x < min_count][0]
 else:
   max_row = len(sorted_umis)
+if max_row > max_row_limit:
+  max_row = max_row_limit # process was killed after ~ 3hrs because too big on MacBookPro with max_row = 105947.
+  # 20000: 24 mins for Hamming, 11 for Levenshtein
+  # 30000: 24 mins for Hamming, 27 for Levenshtein
+  # 40000: 22 mins for Hamming, 51 for Levenshtein
+  # 50000: x mins for Hamming, x for Levenshtein - failed
+
 # max_row = 4 # test
 umis = [umi for (umi, count) in umi_counts if not 'N' in umi]
 
