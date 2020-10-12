@@ -8,7 +8,6 @@ import pickle
 import colorama
 colorama.init()
 import pandas as pd
-from itertools import chain
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
 sys.path.insert(0, project_dir)
@@ -39,7 +38,7 @@ if os.path.exists(metadata_filename):
 else:
   well_ids = []
   
-fastq_read_ngram_hash_filename = fastq_filename + '_FastqReadNgramHash_' + str(FastqReadNgramHash.ngram_length) + '.pkl'
+fastq_read_ngram_hash_filename = fastq_filename + '_FastqReadNgramHash.pkl'
 if os.path.exists(fastq_read_ngram_hash_filename):
   sq.log(f'Reading data from {fastq_read_ngram_hash_filename}...')
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'rb')
@@ -52,8 +51,7 @@ else:
   n_read = 0
   n_skipped = 0
   report_every = 100000
-  # max_to_read = None # None for no limit :)
-  max_to_read = 1000 # None for no limit :)
+  max_to_read = 1000000 # i.e. no limit :)
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_id_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
@@ -85,6 +83,7 @@ else:
         print(f'%d items read from fastq_filename (%d skipped)' % (n_read, n_skipped))
   
   # save FastqReadNgramHash data structure with pickle
+  fastq_read_ngram_hash_filename = fastq_filename + '_FastqReadNgramHash.pkl'
   sq.log(f'Saving FastqReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'wb')
   pickle.dump(fastq_read_ngrams, fastq_read_ngram_hash_file)
@@ -93,6 +92,8 @@ else:
 ### Tests
 
 # Test querying with umi_well_seq data, ordered by well_id
+# sq.log(f'Sorting umi_well_seqs')
+# sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_id_hash, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k]), reverse = True)[0:10]
 
 max_well_id_offset = 6
 fastq_well_id_hash = {}
@@ -104,7 +105,7 @@ for well_id in well_ids:
       continue # assume this is an erroneous match in the UMI
     if fastq_read in fastq_well_id_hash:
       if abs(fastq_well_id_hash[fastq_read][1] - FastqReadData.well_id_start) > abs(position - FastqReadData.well_id_start):
-        # print('Better match found!')
+        print('Better match found!')
         fastq_well_id_hash[fastq_read] = (well_id, position) # we've found a better well_id for this read
     else:
         fastq_well_id_hash[fastq_read] = (well_id, position) # first time we've seen this read
@@ -118,32 +119,25 @@ print(f'fastq_read_ngrams.umi_well_id_hash: {len(fastq_read_ngrams.umi_well_id_h
   #   well_id_matchs = well_id_matchs[closest_match_index]
 
 sq.log(f'Sorting umi_well_seqs')
-sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_id_hash, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k]), reverse = True)#[0:10]
-sorted_fastq_reads = [fastq_read_ngrams.umi_well_id_hash[umi_well_seq][0] for umi_well_seq in sorted_umi_well_seqs] # first will do, as all have the same umi_well_seq
 # only sort those with exact match well_ids for now
-# sorted_fastq_reads = sorted(fastq_well_id_hash.keys(), key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k.umi_well_seq]), reverse = True)#[0:100]
+sorted_fastq_reads = sorted(fastq_well_id_hash.keys(), key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k.umi_well_seq]), reverse = True)[0:10]
+print(sorted_fastq_reads)
+quit()
 # find matchs for all umi_well_seqs
-for fastq_read in sorted_fastq_reads:
-  umi_well_seq = fastq_read.umi_well_seq
-  sq.log(f'Querying FastqReadNgramHash with read with {umi_well_seq}')
-  ngram_matches = fastq_read_ngrams.fastq_read_query(fastq_read, max_mismatches = FastqReadNgramHash.ngram_length + 1, sort_result = True)
-  # # sort matches by total number of times each inexact match seen
-  # ngram_matches = sorted(ngram_matches, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k[0].umi_well_seq]), reverse = True)
+for umi_well_seq in sorted_umi_well_seqs:
+  fastq_read = fastq_read_ngrams.umi_well_id_hash[umi_well_seq]
+  print()
+  well_id = fastq_well_id_hash[fastq_read_ngrams.umi_well_id_hash[umi_well_seq]]
+  sq.log(f'Querying FastqReadNgramHash with {umi_well_seq}')
+  ngram_matches = fastq_read_ngrams.query(umi_well_seq)
+  # sort matches by total number of times each inexact match seen
+  ngram_matches = sorted(ngram_matches, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k[0].umi_well_seq]), reverse = True)
   num_inexact_matches = sum([len(fastq_read_ngrams.umi_well_id_hash[fastq_read.umi_well_seq]) for fastq_read, num_ngram_matches in ngram_matches if fastq_read.umi_well_seq != umi_well_seq])
-  if fastq_read in fastq_well_id_hash:
-    print(f'UMI-WellID: {highlight_well_id(umi_well_seq, well_id, fastq_well_id_hash[fastq_read][1])}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
-  else:
-    print(f'UMI-WellID: {umi_well_seq}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
+  print(f'UMI-WellID: {highlight_well_id(umi_well_seq, well_id, fastq_well_id_hash[fastq_read][1])}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
   for match in ngram_matches:
     if match[0].umi_well_seq != umi_well_seq:
-      # print(match)
-      # print(match[0].umi_well_seq)
-      # print(fastq_well_id_hash[match[0]][1])
-      # print(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])
-      if (fastq_read in fastq_well_id_hash) and (match[0] in fastq_well_id_hash):
-        print(f'            {highlight_well_id(match[0].umi_well_seq, fastq_well_id_hash[fastq_read][0], fastq_well_id_hash[match[0]][1])}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (histogram intersection: {match[1]})')
-      else:
-        print(f'            {match[0].umi_well_seq}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (histogram intersection: {match[1]})')
+      print(f'            {highlight_well_id(match[0].umi_well_seq, well_id, fastq_well_id_hash[match[0]][1])}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (ngram matches: {len(match[1])})')
+
 
 # # Test querying with well_id data
 # well_id = 'TCCATAGG'

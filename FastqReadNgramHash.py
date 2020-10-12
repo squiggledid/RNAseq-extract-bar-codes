@@ -6,6 +6,13 @@ sys.path.insert(0, project_dir)
 
 from FastqReadData import FastqReadData
 
+def histogram_intersection(hist1, hist2):
+  similarity = 0
+  for entry in hist1.keys():
+    if entry in hist2:
+      similarity += min(hist1[entry], hist2[entry])
+  return similarity
+    
 class FastqReadNgramHash:
   '''
   Hash storing FastqReadData objects, indexed by ngrams, with entries being lists of
@@ -13,7 +20,7 @@ class FastqReadNgramHash:
   object started from
   '''
 
-  ngram_length = 8
+  ngram_length = 6
   
   def __init__(self):
     self.umi_well_id_hash = {}
@@ -37,30 +44,28 @@ class FastqReadNgramHash:
       self.umi_well_id_hash[fastq_read.umi_well_seq].append(fastq_read)
     else:
       self.umi_well_id_hash[fastq_read.umi_well_seq] = [fastq_read]
-      # insert ngrams - only do this for unique umi_well_seq
+      # insert ngrams
+      ngram_histogram = {}
       for offset in range(seq_length - FastqReadNgramHash.ngram_length):
         ngram = fastq_read.umi_well_seq[offset:(offset + self.ngram_length)]
         if ngram in self.ngram_hash:
           self.ngram_hash[ngram].append((fastq_read, offset))
         else:
           self.ngram_hash[ngram] = [(fastq_read, offset)]
-  
-  def query(self, umi_well_seq, max_mismatches = 4, sort_result = False):
+    
+  def fastq_read_query(self, query_fastq_read, max_mismatches = 4, sort_result = False):
     seq_length = FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding
-    min_matches = seq_length - FastqReadNgramHash.ngram_length - max_mismatches
-    match_fastq_reads = {}
+    min_similarity = seq_length - FastqReadNgramHash.ngram_length - max_mismatches
+    # build a hash of matches
+    match_fastq_ngram_hash_entries = {}
     for offset in range(seq_length - FastqReadNgramHash.ngram_length):
-      ngram = umi_well_seq[offset:(offset + FastqReadNgramHash.ngram_length)]
-      new_matches = self.ngram_hash[ngram]
-      for (fastq_read, offset) in new_matches:
-        if fastq_read in match_fastq_reads:
-          match_fastq_reads[fastq_read].append(offset)
-        else:
-          match_fastq_reads[fastq_read] = [offset]
-    final_matches = [(key, val) for (key, val) in match_fastq_reads.items() if len(val) > min_matches]
+      ngram = query_fastq_read.umi_well_seq[offset:(offset + FastqReadNgramHash.ngram_length)]
+      match_fastq_ngram_hash_entries.update(dict(self.ngram_hash[ngram]))
+    # compute similarities to query
+    match_similarities = [(match_fastq_read, histogram_intersection(query_fastq_read.get_ngram_histogram(FastqReadNgramHash.ngram_length), match_fastq_read.get_ngram_histogram(FastqReadNgramHash.ngram_length))) for match_fastq_read in match_fastq_ngram_hash_entries.keys()]
+    final_matches = [(match_fastq_read, similarity) for (match_fastq_read, similarity) in match_similarities if similarity > min_similarity]
     if sort_result:
-      final_matches = sorted(final_matches, key = lambda x : len(x[1]), reverse = True)
-    # TODO to we want/need to check order? Only matters in max_mismatches is high, I guess
+      final_matches = sorted(final_matches, key = lambda x : x[1], reverse = True)
     return(final_matches)
 
   def exact_match_query(self, query_seq):
@@ -74,7 +79,10 @@ class FastqReadNgramHash:
     num_ngrams = len(query_seq) - FastqReadNgramHash.ngram_length + 1
     for offset in range(num_ngrams):
       ngram = query_seq[offset:(offset + FastqReadNgramHash.ngram_length)]
-      new_matches = self.ngram_hash[ngram]
+      if ngram in self.ngram_hash:
+        new_matches = self.ngram_hash[ngram]
+      else:
+        new_matches = []
       for (fastq_read, offset) in new_matches:
         if fastq_read in match_fastq_reads:
           match_fastq_reads[fastq_read].append(offset)
