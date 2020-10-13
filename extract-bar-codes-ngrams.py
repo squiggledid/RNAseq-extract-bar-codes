@@ -8,7 +8,6 @@ import pickle
 import colorama
 colorama.init()
 import pandas as pd
-from itertools import chain
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
 sys.path.insert(0, project_dir)
@@ -19,8 +18,10 @@ from FastqReadNgramHash import FastqReadNgramHash
 
 ###############################################################################
 
-def highlight_well_id(umi_well_seq, well_id, position):
-  return(f'{umi_well_seq[0:position]}{colorama.Fore.GREEN}{umi_well_seq[position:position + len(well_id)]}{colorama.Style.RESET_ALL}{umi_well_seq[position + len(well_id):]}')
+mismatch_colours = (colorama.Fore.GREEN, colorama.Fore.YELLOW, colorama.Fore.MAGENTA, colorama.Fore.RED)
+def highlight_well_id(umi_well_seq, well_id, position, mismatch):
+  mismatch = min(mismatch, 3) # >2 should never happen as presently constructed
+  return(f'{umi_well_seq[0:position]}{mismatch_colours[mismatch]}{umi_well_seq[position:position + len(well_id)]}{colorama.Style.RESET_ALL}{umi_well_seq[position + len(well_id):]}')
 
 ###############################################################################
 if (len(sys.argv)) < 2 or (len(sys.argv) > 3):
@@ -52,8 +53,8 @@ else:
   n_read = 0
   n_skipped = 0
   report_every = 100000
-  # max_to_read = None # None for no limit :)
-  max_to_read = 1000 # None for no limit :)
+  max_to_read = None # None for no limit :)
+  max_to_read = 10 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_id_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
@@ -98,16 +99,21 @@ max_well_id_offset = 6
 fastq_well_id_hash = {}
 sq.log(f'Building fastq_well_id_hash')
 for well_id in well_ids:
-  well_id_matchs = fastq_read_ngrams.exact_match_query(well_id)
-  for fastq_read, position in well_id_matchs:
+  well_id_matchs = fastq_read_ngrams.seq_query(well_id)
+  for fastq_read, position, mismatch in well_id_matchs:
     if abs(position - FastqReadData.well_id_start) > max_well_id_offset:
       continue # assume this is an erroneous match in the UMI
     if fastq_read in fastq_well_id_hash:
-      if abs(fastq_well_id_hash[fastq_read][1] - FastqReadData.well_id_start) > abs(position - FastqReadData.well_id_start):
+      if fastq_well_id_hash[fastq_read][2] > mismatch \
+        or ( \
+          fastq_well_id_hash[fastq_read][2] == mismatch \
+          and abs(fastq_well_id_hash[fastq_read][1] - FastqReadData.well_id_start) > abs(position - FastqReadData.well_id_start \
+        ) \
+      ):
         # print('Better match found!')
-        fastq_well_id_hash[fastq_read] = (well_id, position) # we've found a better well_id for this read
+        fastq_well_id_hash[fastq_read] = (well_id, position, mismatch) # we've found a better well_id for this read
     else:
-        fastq_well_id_hash[fastq_read] = (well_id, position) # first time we've seen this read
+        fastq_well_id_hash[fastq_read] = (well_id, position, mismatch) # first time we've seen this read
 
 print(f'fastq_well_id_hash: {len(fastq_well_id_hash)} items')    
 print(f'fastq_read_ngrams.umi_well_id_hash: {len(fastq_read_ngrams.umi_well_id_hash)} items')        
@@ -126,12 +132,12 @@ sorted_fastq_reads = [fastq_read_ngrams.umi_well_id_hash[umi_well_seq][0] for um
 for fastq_read in sorted_fastq_reads:
   umi_well_seq = fastq_read.umi_well_seq
   sq.log(f'Querying FastqReadNgramHash with read with {umi_well_seq}')
-  ngram_matches = fastq_read_ngrams.fastq_read_query(fastq_read, max_mismatches = FastqReadNgramHash.ngram_length + 1, sort_result = True)
+  ngram_matches = fastq_read_ngrams.fastq_read_query(fastq_read, max_mismatches = FastqReadNgramHash.ngram_length + 2)
   # # sort matches by total number of times each inexact match seen
-  # ngram_matches = sorted(ngram_matches, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k[0].umi_well_seq]), reverse = True)
+  ngram_matches = sorted(ngram_matches, key = lambda k : len(fastq_read_ngrams.umi_well_id_hash[k[0].umi_well_seq]), reverse = True)
   num_inexact_matches = sum([len(fastq_read_ngrams.umi_well_id_hash[fastq_read.umi_well_seq]) for fastq_read, num_ngram_matches in ngram_matches if fastq_read.umi_well_seq != umi_well_seq])
   if fastq_read in fastq_well_id_hash:
-    print(f'UMI-WellID: {highlight_well_id(umi_well_seq, well_id, fastq_well_id_hash[fastq_read][1])}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
+    print(f'UMI-WellID: {highlight_well_id(umi_well_seq, well_id, fastq_well_id_hash[fastq_read][1], fastq_well_id_hash[fastq_read][2])}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
   else:
     print(f'UMI-WellID: {umi_well_seq}\tExact: {len(fastq_read_ngrams.umi_well_id_hash[umi_well_seq])}\tInexact: {num_inexact_matches}')
   for match in ngram_matches:
@@ -141,7 +147,7 @@ for fastq_read in sorted_fastq_reads:
       # print(fastq_well_id_hash[match[0]][1])
       # print(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])
       if (fastq_read in fastq_well_id_hash) and (match[0] in fastq_well_id_hash):
-        print(f'            {highlight_well_id(match[0].umi_well_seq, fastq_well_id_hash[fastq_read][0], fastq_well_id_hash[match[0]][1])}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (histogram intersection: {match[1]})')
+        print(f'            {highlight_well_id(match[0].umi_well_seq, fastq_well_id_hash[fastq_read][0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (histogram intersection: {match[1]})')
       else:
         print(f'            {match[0].umi_well_seq}: {len(fastq_read_ngrams.umi_well_id_hash[match[0].umi_well_seq])} (histogram intersection: {match[1]})')
 
