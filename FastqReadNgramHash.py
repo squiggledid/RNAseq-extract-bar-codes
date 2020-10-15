@@ -93,8 +93,11 @@ class FastqReadNgramHash:
         else:
           match_umi_well_seq_counts[match_umi_well_seq] = 1
     # compute similarities to query
-    match_similarities = [(match_umi_well_seq, histogram_intersection(FastqReadNgramHash.get_ngram_histogram(query_umi_well_seq, FastqReadNgramHash.ngram_length), FastqReadNgramHash.get_ngram_histogram(match_umi_well_seq, FastqReadNgramHash.ngram_length))) \
-      for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
+    match_similarities = [(match_umi_well_seq, \
+      histogram_intersection( \
+      FastqReadNgramHash.get_ngram_histogram(query_umi_well_seq, FastqReadNgramHash.ngram_length), \
+      FastqReadNgramHash.get_ngram_histogram(match_umi_well_seq, FastqReadNgramHash.ngram_length)) \
+      ) for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
     final_matches = [(match_umi_well_seq, similarity) for (match_umi_well_seq, similarity) in match_similarities if similarity > min_similarity]
     if sort_result:
       final_matches = sorted(final_matches, key = lambda match : match[1], reverse = True)

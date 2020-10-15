@@ -154,3 +154,5 @@ extract-bar-codes-incremental-cluster-silly.py
 *.swp
 
 NgramBuildingOutput.txt
+
+*.out

@@ -108,7 +108,7 @@ else:
 
 ### Load or build well_id hash
 max_well_id_offset = 4
-max_dist = 3
+max_dist = 4
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
   sq.log(f'Reading data from {fastq_well_id_hash_filename}...')
@@ -129,10 +129,10 @@ else:
         best_pos = this_pos
         best_dist = this_dist
         best_well_id = well_id
-      if (best_dist <= max_dist):
-        fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
-        if best_dist == 0:
-          break # no need to try other well_ids if we've found a perfect match
+        if best_dist <= max_dist:
+          fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
+          if best_dist == 0 and best_pos == FastqReadData.well_id_start:
+            break # no need to try other well_ids if we've found a perfect match
   # save FastqReadNgramHash data structure with pickle
   sq.log(f'Saving fastq_well_id_hash to %s...' % fastq_well_id_hash_filename)
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
@@ -162,8 +162,8 @@ print(f'Maxzimum well_id Levenshtein distance: {np.max(well_id_distances)}')
 print(f'Minimum well_id Levenshtein distance:  {np.min(well_id_distances)}')
 print('Levenshtein distance distribution:')
 print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(well_id_distance_counts)))
-quit()
 
+# quit()
 
 ### Tests
 
@@ -171,21 +171,20 @@ sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
 # find matchs for all umi_well_seqs
 for umi_well_seq in sorted_umi_well_seqs:
-  sq.log(f'Querying FastqReadNgramHash with read with {umi_well_seq}')
+  sq.log(f'Querying with {umi_well_seq}...')
   ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, max_mismatches = FastqReadNgramHash.ngram_length + 2)
   # # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
   if umi_well_seq in fastq_well_id_hash:
-    print(f'UMI-WellID: {highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}\tExact: {fastq_read_ngrams.num_reads(umi_well_seq)}\tInexact: {num_inexact_matches}')
+    print(f'Summary: {highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
   else:
-    print(f'UMI-WellID: {umi_well_seq}\tExact: {fastq_read_ngrams.num_reads(umi_well_seq)}\tInexact: {num_inexact_matches}')
+    print(f'Summary: {umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
   for match in ngram_matches:
-    if match[0] != umi_well_seq:
-      if (umi_well_seq in fastq_well_id_hash) and (match[0] in fastq_well_id_hash):
-        print(f'            {highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0])} (histogram intersection: {match[1]})')
-      else:
-        print(f'            {match[0]}: {fastq_read_ngrams.num_reads(match[0])} (histogram intersection: {match[1]})')
+    if match[0] in fastq_well_id_hash:
+      print(f'{" "*len("Summary: ")}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0])} {fastq_well_id_hash[match[0]][0]} (hist. int.: {match[1]})')
+    else:
+      print(f'{" "*len("Summary: ")}{match[0]}: {fastq_read_ngrams.num_reads(match[0])}{" "*(FastqReadData.well_id_length + 1)} (hist. int.: {match[1]})')
 
 
 
