@@ -55,14 +55,14 @@ else:
 
 ### Read FASTQ reads
 
-fastq_read_ngram_hash_filename = fastq_filename + '_FastqReadNgramHash_' + str(FastqReadNgramHash.ngram_length) + '.pkl'
+fastq_read_ngram_hash_filename = f'{fastq_filename}_FastqReadNgramHash_{FastqReadNgramHash.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_read_ngram_hash_filename):
   sq.log(f'Reading data from {fastq_read_ngram_hash_filename}...')
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'rb')
   fastq_read_ngrams = pickle.load(fastq_read_ngram_hash_file)
   fastq_read_ngram_hash_file.close()
 else:
-  sq.log(f'Building FastqReadNgramHash from {fastq_read_ngram_hash_filename}...')
+  sq.log(f'Building FastqReadNgramHash from {fastq_filename}...')
   # Go through FASTQ file, one four-line block at a time
   ignore_Ns = True
   n_read = 0
@@ -107,8 +107,8 @@ else:
   fastq_read_ngram_hash_file.close()
 
 ### Load or build well_id hash
-max_well_id_offset = 4
-max_dist = 4
+max_well_id_offset = 6
+max_dist = 1
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
   sq.log(f'Reading data from {fastq_well_id_hash_filename}...')
@@ -133,7 +133,7 @@ else:
           fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
           if best_dist == 0 and best_pos == FastqReadData.well_id_start:
             break # no need to try other well_ids if we've found a perfect match
-  # save FastqReadNgramHash data structure with pickle
+  # save FastqReadNgramHash data structure
   sq.log(f'Saving fastq_well_id_hash to %s...' % fastq_well_id_hash_filename)
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
   pickle.dump(fastq_well_id_hash, fastq_well_id_hash_file)
@@ -170,6 +170,7 @@ print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
 # find matchs for all umi_well_seqs
+query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
   sq.log(f'Querying with {umi_well_seq}...')
   ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, max_mismatches = FastqReadNgramHash.ngram_length + 2)
@@ -177,14 +178,15 @@ for umi_well_seq in sorted_umi_well_seqs:
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
   if umi_well_seq in fastq_well_id_hash:
-    print(f'Summary: {highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+    print(f'{query_num}. Summary: {highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
   else:
-    print(f'Summary: {umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+    print(f'{query_num}. Summary: {umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+  padding_len = len(f'{query_num}. Summary: ')
   for match in ngram_matches:
     if match[0] in fastq_well_id_hash:
-      print(f'{" "*len("Summary: ")}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0])} {fastq_well_id_hash[match[0]][0]} (hist. int.: {match[1]})')
+      print(f'{" "*padding_len}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0])} {fastq_well_id_hash[match[0]][0]} (hist. int.: {match[1]})')
     else:
-      print(f'{" "*len("Summary: ")}{match[0]}: {fastq_read_ngrams.num_reads(match[0])}{" "*(FastqReadData.well_id_length + 1)} (hist. int.: {match[1]})')
-
+      print(f'{" "*padding_len}{match[0]}: {fastq_read_ngrams.num_reads(match[0])}{" "*(FastqReadData.well_id_length + 1)} (hist. int.: {match[1]})')
+  query_num += 1
 
 
