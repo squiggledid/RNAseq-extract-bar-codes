@@ -107,8 +107,8 @@ else:
   fastq_read_ngram_hash_file.close()
 
 ### Load or build well_id hash
-max_well_id_offset = 6
-max_dist = 1
+max_well_id_offset = 4
+max_dist = 2
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
   sq.log(f'Reading data from {fastq_well_id_hash_filename}...')
