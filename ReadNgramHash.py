@@ -1,6 +1,5 @@
 import sys
 import Levenshtein
-import collections # for testing
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
 sys.path.insert(0, project_dir)
@@ -14,20 +13,15 @@ class ReadNgramHash:
   object started from
   '''
 
-  # constants
-  seq_length = 0 # actual value passed to __init__
-  ngram_length = 6
-  store_reads = False
-  build_ngram_histogram_cache = True
-  
-  # dynamic class variables
-  ngram_histogram_cache = {}
-  
   # methods
-  def __init__(self, read_seq_length):
-    self.seq_length = read_seq_length
+  def __init__(self, seq_length, ngram_length = 6, store_reads = False, build_ngram_histogram_cache = True):
+    self.seq_length = seq_length
+    self.ngram_length = ngram_length
+    self.store_reads = store_reads
+    self.build_ngram_histogram_cache = build_ngram_histogram_cache
     self.umi_well_seq_hash = {}
     self.ngram_hash = {}
+    self.ngram_histogram_cache = {}
 
   def __str__(self):
     import collections
@@ -83,35 +77,21 @@ class ReadNgramHash:
     
   def umi_well_seq_query(self, query_umi_well_seq, min_hist_int = 0.8, sort_result = False):
     min_similarity = 0.8*(self.seq_length - self.ngram_length)
-    # print(self.seq_length, self.ngram_length, max_mismatches)
-    # print(f'min_similarity: {min_similarity}')
-    # print(f'self.ngram_hash: {self.ngram_hash}')
     # build a hash of matches
     match_umi_well_seq_counts = {}
     for offset in range(self.seq_length - self.ngram_length):
-      ngram = query_umi_well_seq[offset:(offset + ReadNgramHash.ngram_length)]
-      # print(f'ngram: {ngram}')
+      ngram = query_umi_well_seq[offset:(offset + self.ngram_length)]
       for match_umi_well_seq, offset in self.ngram_hash[ngram]:
         if match_umi_well_seq in match_umi_well_seq_counts:
           match_umi_well_seq_counts[match_umi_well_seq] += 1
         else:
           match_umi_well_seq_counts[match_umi_well_seq] = 1
     # compute similarities to query
-    # match_umi_well_seq_counts_hash = collections.Counter(match_umi_well_seq_counts.values())
-    # print(f'match_umi_well_seq_counts_hash: {match_umi_well_seq_counts_hash}')
-    # for match_umi_well_seq in match_umi_well_seq_counts:
-    #   print(query_umi_well_seq, self.get_ngram_histogram(query_umi_well_seq))
-    #   print(match_umi_well_seq, self.get_ngram_histogram(match_umi_well_seq))
-    #   hist_int = histogram_intersection( \
-    #   self.get_ngram_histogram(query_umi_well_seq), \
-    #   self.get_ngram_histogram(match_umi_well_seq))
-    #   print(f'\thist_int: {hist_int}')
     match_similarities = [(match_umi_well_seq, \
       histogram_intersection( \
       self.get_ngram_histogram(query_umi_well_seq), \
       self.get_ngram_histogram(match_umi_well_seq)) \
       ) for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
-    # print(f'match_similarities: {match_similarities}')
     final_matches = [(match_umi_well_seq, similarity) for (match_umi_well_seq, similarity) in match_similarities if similarity > min_similarity]
     if sort_result:
       final_matches = sorted(final_matches, key = lambda match : match[1], reverse = True)
@@ -122,12 +102,12 @@ class ReadNgramHash:
     Return a list of tuples of mqtches, each with a reference to a read that contains the
     query sequence query_seq, and the postion at which it was found in that read's umi_well_seq
     '''
-    if len(query_seq) < ReadNgramHash.ngram_length:
-      sys.stderr.write(f'Cannot query a ReadNgramHash with a query string shorter than the ngram length ({ReadNgramHash.ngram_length})\n')
+    if len(query_seq) < self.ngram_length:
+      sys.stderr.write(f'Cannot query a ReadNgramHash with a query string shorter than the ngram length ({self.ngram_length})\n')
     match_umi_well_seqs = {}
-    num_ngrams = len(query_seq) - ReadNgramHash.ngram_length + 1
+    num_ngrams = len(query_seq) - self.ngram_length + 1
     for offset in range(num_ngrams):
-      ngram = query_seq[offset:(offset + ReadNgramHash.ngram_length)]
+      ngram = query_seq[offset:(offset + self.ngram_length)]
       if ngram in self.ngram_hash:
         new_matches = self.ngram_hash[ngram]
       else:

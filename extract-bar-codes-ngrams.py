@@ -54,8 +54,8 @@ else:
   known_well_id_counts_hash = {}
 
 ### Read FASTQ reads
-
-fastq_read_ngram_hash_filename = f'{fastq_filename}_ReadNgramHash_{ReadNgramHash.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
+fastq_read_ngrams = ReadNgramHash(FastqReadData.seq_length) # create an object so we can access the ngram_length
+fastq_read_ngram_hash_filename = f'{fastq_filename}_ReadNgramHash_{fastq_read_ngrams.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_read_ngram_hash_filename):
   sq.log(f'Reading data from {fastq_read_ngram_hash_filename}...')
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'rb')
@@ -69,7 +69,7 @@ else:
   n_skipped = 0
   report_every = 100000
   max_to_read = None # None for no limit :)
-  max_to_read = 100000 # For testing
+  # max_to_read = 100000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_seq_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
@@ -107,7 +107,7 @@ else:
   fastq_read_ngram_hash_file.close()
 
 ### Load or build well_id hash
-max_well_id_offset = 4
+max_well_id_offset = 10
 max_dist = 2
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
@@ -133,7 +133,7 @@ else:
           fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
           if best_dist == 0 and best_pos == FastqReadData.well_id_start:
             break # no need to try other well_ids if we've found a perfect match
-  # save ReadNgramHash data structure
+  # save well_id hash data structure
   sq.log(f'Saving fastq_well_id_hash to %s...' % fastq_well_id_hash_filename)
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
   pickle.dump(fastq_well_id_hash, fastq_well_id_hash_file)

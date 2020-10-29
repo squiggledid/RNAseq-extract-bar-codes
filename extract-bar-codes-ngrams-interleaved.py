@@ -54,8 +54,8 @@ else:
   known_well_id_counts_hash = {}
 
 ### Read Interleaved reads
-
-interleaved_read_ngram_hash_filename = f'{read_filename}_ReadNgramHash_{ReadNgramHash.ngram_length}_{InterleavedUMIReadData.umi_well_padding}.pkl'
+interleaved_read_ngrams = ReadNgramHash(InterleavedUMIReadData.seq_length) # create an object so we can access the ngram_length
+interleaved_read_ngram_hash_filename = f'{read_filename}_ReadNgramHash_{interleaved_read_ngrams.ngram_length}_{InterleavedUMIReadData.umi_well_padding}.pkl'
 if os.path.exists(interleaved_read_ngram_hash_filename):
   sq.log(f'Reading data from {interleaved_read_ngram_hash_filename}...')
   interleaved_read_ngram_hash_file = open(interleaved_read_ngram_hash_filename, 'rb')
@@ -113,7 +113,7 @@ else:
   for umi_well_seq in interleaved_read_ngrams.umi_well_seq_hash:
     (umi, well_id) = InterleavedUMIReadData.extract_umi_and_well_id(umi_well_seq)
     interleaved_well_id_hash[umi_well_seq] = well_id
-  # save ReadNgramHash data structure
+  # save well_id hash data structure
   sq.log(f'Saving interleaved_well_id_hash to %s...' % interleaved_well_id_hash_filename)
   interleaved_well_id_hash_file = open(interleaved_well_id_hash_filename, 'wb')
   pickle.dump(interleaved_well_id_hash, interleaved_well_id_hash_file)
@@ -126,7 +126,7 @@ print(f'interleaved_well_id_hash: {len(interleaved_well_id_hash)} items')
 well_ids = [well_id for well_id in interleaved_well_id_hash.values()]
 well_id_counts_hash = collections.Counter(well_ids)
 print(f'{len(well_id_counts_hash)} unique well_ids seen')
-max_well_ids_to_print = 100
+max_well_ids_to_print = 1000
 well_ids_to_analyse = sorted(well_id_counts_hash, key = well_id_counts_hash.get, reverse = True)[0:max_well_ids_to_print]
 for well_id in well_ids_to_analyse:
   if known_well_id_counts_hash:
@@ -167,7 +167,7 @@ for umi_well_seq in sorted_umi_well_seqs:
   padding_len = len(f'{query_num}. Summary: ')
   for match in ngram_matches:
     (umi, well_id) = InterleavedUMIReadData.extract_umi_and_well_id(match[0])
-    print(f'{match[0]} (UMI: {umi} Well: {well_id}): {interleaved_read_ngrams.num_reads(match[0]):5} (sim: {match[1]})')
+    print(f'{match[0]} (UMI: {umi} Well: {well_id}) {interleaved_read_ngrams.num_reads(match[0]):5} (sim: {match[1]})')
   query_num += 1
 
 

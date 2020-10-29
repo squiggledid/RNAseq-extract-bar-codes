@@ -5,6 +5,9 @@ sys.path.insert(0, project_dir)
 
 from ReadData import ReadData
 
+def _extract_by_pos_and_length(seq, pos_length):
+  return(''.join([seq[pos:pos+length] for pos, length in pos_length]))
+    
 class InterleavedUMIReadData(ReadData):
   '''
   Information associated with a Read from a 'tab' file from with interleaved UMI and Well ID as used by apharseq
@@ -24,6 +27,6 @@ class InterleavedUMIReadData(ReadData):
   
   @classmethod
   def extract_umi_and_well_id(cls, umi_well_seq):
-    umi = ''.join([umi_well_seq[pos:pos+length] for pos, length in cls.umi_pos_length])
-    well_id = ''.join([umi_well_seq[pos:pos+length] for pos, length in cls.well_id_pos_length])
-    return((umi, well_id))
+    umi = _extract_by_pos_and_length(umi_well_seq, cls.umi_pos_length)
+    well_id = _extract_by_pos_and_length(umi_well_seq, cls.well_id_pos_length)
+    return(umi, well_id)
