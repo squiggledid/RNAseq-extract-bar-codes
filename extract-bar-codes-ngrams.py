@@ -18,7 +18,7 @@ sys.path.insert(0, project_dir)
 
 import squtils as sq
 from FastqReadData import FastqReadData
-from FastqReadNgramHash import FastqReadNgramHash, seq_target_query
+from ReadNgramHash import ReadNgramHash, seq_target_query
 
 ###############################################################################
 
@@ -55,25 +55,25 @@ else:
 
 ### Read FASTQ reads
 
-fastq_read_ngram_hash_filename = f'{fastq_filename}_FastqReadNgramHash_{FastqReadNgramHash.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
+fastq_read_ngram_hash_filename = f'{fastq_filename}_ReadNgramHash_{ReadNgramHash.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_read_ngram_hash_filename):
   sq.log(f'Reading data from {fastq_read_ngram_hash_filename}...')
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'rb')
   fastq_read_ngrams = pickle.load(fastq_read_ngram_hash_file)
   fastq_read_ngram_hash_file.close()
 else:
-  sq.log(f'Building FastqReadNgramHash from {fastq_filename}...')
+  sq.log(f'Building ReadNgramHash from {fastq_filename}...')
   # Go through FASTQ file, one four-line block at a time
   ignore_Ns = True
   n_read = 0
   n_skipped = 0
   report_every = 100000
   max_to_read = None # None for no limit :)
-  # max_to_read = 1000 # For testing
+  max_to_read = 1000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_seq_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
-  fastq_read_ngrams = FastqReadNgramHash();
+  fastq_read_ngrams = ReadNgramHash(FastqReadData.seq_length);
   with gzip.open(fastq_filename, 'r') as fastq_file:
     while (max_to_read == None) or (n_read < max_to_read): # Loop until we don't find another read_id_line, or have reached max_to_read
       read_id_line: str = fastq_file.readline().decode('ascii').rstrip()
@@ -100,8 +100,8 @@ else:
       if (n_read % report_every) == 0:
         print(f'%d items read from fastq_filename (%d skipped)' % (n_read, n_skipped))
   
-  # save FastqReadNgramHash data structure with pickle
-  sq.log(f'Saving FastqReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
+  # save ReadNgramHash data structure with pickle
+  sq.log(f'Saving ReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'wb')
   pickle.dump(fastq_read_ngrams, fastq_read_ngram_hash_file)
   fastq_read_ngram_hash_file.close()
@@ -133,7 +133,7 @@ else:
           fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
           if best_dist == 0 and best_pos == FastqReadData.well_id_start:
             break # no need to try other well_ids if we've found a perfect match
-  # save FastqReadNgramHash data structure
+  # save ReadNgramHash data structure
   sq.log(f'Saving fastq_well_id_hash to %s...' % fastq_well_id_hash_filename)
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
   pickle.dump(fastq_well_id_hash, fastq_well_id_hash_file)
@@ -173,7 +173,7 @@ sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda 
 query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
   sq.log(f'Querying with {umi_well_seq}...')
-  ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, max_mismatches = FastqReadNgramHash.ngram_length + 2)
+  ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, max_mismatches = ReadNgramHash.ngram_length + 2)
   # # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])

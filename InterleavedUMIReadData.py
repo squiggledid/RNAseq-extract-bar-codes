@@ -1,4 +1,3 @@
-import re
 import sys
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
@@ -6,7 +5,7 @@ sys.path.insert(0, project_dir)
 
 from ReadData import ReadData
 
-class FastqReadData(ReadData):
+class InterleavedUMIReadData(ReadData):
   '''
   Information associated with a Read from a FASTQ file
   '''
@@ -16,7 +15,6 @@ class FastqReadData(ReadData):
   well_id_start = 16
   well_id_length = 8
   umi_well_padding = 4
-  seq_length = umi_length + well_id_length + umi_well_padding
   
   def __init__(self, read_id, sequence, quality, store_sequence = False, store_quality = False):
       # Extract the IDs
