@@ -7,26 +7,23 @@ from ReadData import ReadData
 
 class InterleavedUMIReadData(ReadData):
   '''
-  Information associated with a Read from a FASTQ file
+  Information associated with a Read from a 'tab' file from with interleaved UMI and Well ID as used by apharseq
   '''
   # constants
-  umi_start = 0
-  umi_length = 16
-  well_id_start = 16
-  well_id_length = 8
-  umi_well_padding = 4
+  umi_pos_length = [(0, 4), (9, 4), (18, 2)]
+  well_id_pos_length = [(4, 5), (13, 5)]
+  seq_length = sum([length for pos, length in umi_pos_length] + [length for pos, length in well_id_pos_length])
   
-  def __init__(self, read_id, sequence, quality, store_sequence = False, store_quality = False):
+  def __init__(self, R1_seq):
       # Extract the IDs
-      self.read_id = read_id
-      self.umi_well_seq = sequence[self.umi_start:(self.umi_start + self.umi_length + self.well_id_length + self.umi_well_padding)]
-      amplicon_match = re.search(':([^:]+)$', read_id)
-      self.amplicon_id: str = amplicon_match.group(1)
-      if store_sequence:
-        self.sequence = sequence
-      if store_quality:
-        self.quality = quality
+      self.umi_well_seq = R1_seq[0:self.seq_length] # discard padding 'N's
 
   def __str__(self):
-    string_rep = f'FastqReadData: {self.read_id}, umi_well_seq: {self.umi_well_seq}'
+    string_rep = f'InterleavedUMIReadData: umi_well_seq: {self.umi_well_seq}'
     return string_rep
+  
+  @classmethod
+  def extract_umi_and_well_id(cls, umi_well_seq):
+    umi = ''.join([umi_well_seq[pos:pos+length] for pos, length in cls.umi_pos_length])
+    well_id = ''.join([umi_well_seq[pos:pos+length] for pos, length in cls.well_id_pos_length])
+    return((umi, well_id))

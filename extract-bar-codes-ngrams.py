@@ -69,7 +69,7 @@ else:
   n_skipped = 0
   report_every = 100000
   max_to_read = None # None for no limit :)
-  max_to_read = 1000 # For testing
+  max_to_read = 100000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_seq_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
@@ -173,7 +173,7 @@ sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda 
 query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
   sq.log(f'Querying with {umi_well_seq}...')
-  ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, max_mismatches = ReadNgramHash.ngram_length + 2)
+  ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
   # # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
@@ -184,9 +184,9 @@ for umi_well_seq in sorted_umi_well_seqs:
   padding_len = len(f'{query_num}. Summary: ')
   for match in ngram_matches:
     if match[0] in fastq_well_id_hash:
-      print(f'{" "*padding_len}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0])} {fastq_well_id_hash[match[0]][0]} (hist. int.: {match[1]})')
+      print(f'{" "*padding_len}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0]):5} {fastq_well_id_hash[match[0]][0]} (sim.: {match[1]})')
     else:
-      print(f'{" "*padding_len}{match[0]}: {fastq_read_ngrams.num_reads(match[0])}{" "*(FastqReadData.well_id_length + 1)} (hist. int.: {match[1]})')
+      print(f'{" "*padding_len}{match[0]}: {fastq_read_ngrams.num_reads(match[0]):5}{" "*(FastqReadData.well_id_length + 1)} (sim.: {match[1]})')
   query_num += 1
 
 

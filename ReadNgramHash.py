@@ -1,5 +1,6 @@
 import sys
 import Levenshtein
+import collections # for testing
 
 project_dir = "/Users/davids/git/WEHI_CoViD_RNAseq/RNAseq-extract-bar-codes"
 sys.path.insert(0, project_dir)
@@ -24,7 +25,7 @@ class ReadNgramHash:
   
   # methods
   def __init__(self, read_seq_length):
-    seq_length = read_seq_length
+    self.seq_length = read_seq_length
     self.umi_well_seq_hash = {}
     self.ngram_hash = {}
 
@@ -60,7 +61,7 @@ class ReadNgramHash:
           self.ngram_hash[ngram] = [(the_read.umi_well_seq, offset)]
       if (self.build_ngram_histogram_cache):
         # Insert the umi_well_seq into the ngram_histogram_cache at build time, so it is saved with the hash before any queries
-        ReadNgramHash.get_ngram_histogram(the_read.umi_well_seq, ReadNgramHash.ngram_length)
+        self.get_ngram_histogram(the_read.umi_well_seq)
       
   def num_reads(self, umi_well_seq):
     if (self.store_reads):
@@ -68,36 +69,49 @@ class ReadNgramHash:
     else:
       return(self.umi_well_seq_hash[umi_well_seq])
 
-  @classmethod
-  def get_ngram_histogram(cls, umi_well_seq, ngram_length):
-    if umi_well_seq not in cls.ngram_histogram_cache:
+  def get_ngram_histogram(self, umi_well_seq):
+    if umi_well_seq not in self.ngram_histogram_cache:
       ngram_histogram = {}
-      for offset in range(cls.seq_length - ngram_length):
-        ngram = umi_well_seq[offset:(offset + ngram_length)]
+      for offset in range(self.seq_length - self.ngram_length):
+        ngram = umi_well_seq[offset:(offset + self.ngram_length)]
         if ngram in ngram_histogram:
           ngram_histogram[ngram] += 1
         else:
           ngram_histogram[ngram] = 1
-      cls.ngram_histogram_cache[umi_well_seq] = ngram_histogram
-    return(cls.ngram_histogram_cache[umi_well_seq])
+      self.ngram_histogram_cache[umi_well_seq] = ngram_histogram
+    return(self.ngram_histogram_cache[umi_well_seq])
     
-  def umi_well_seq_query(self, query_umi_well_seq, max_mismatches = 4, sort_result = False):
-    min_similarity = self.seq_length - self.ngram_length - max_mismatches
+  def umi_well_seq_query(self, query_umi_well_seq, min_hist_int = 0.8, sort_result = False):
+    min_similarity = 0.8*(self.seq_length - self.ngram_length)
+    # print(self.seq_length, self.ngram_length, max_mismatches)
+    # print(f'min_similarity: {min_similarity}')
+    # print(f'self.ngram_hash: {self.ngram_hash}')
     # build a hash of matches
     match_umi_well_seq_counts = {}
     for offset in range(self.seq_length - self.ngram_length):
       ngram = query_umi_well_seq[offset:(offset + ReadNgramHash.ngram_length)]
+      # print(f'ngram: {ngram}')
       for match_umi_well_seq, offset in self.ngram_hash[ngram]:
         if match_umi_well_seq in match_umi_well_seq_counts:
           match_umi_well_seq_counts[match_umi_well_seq] += 1
         else:
           match_umi_well_seq_counts[match_umi_well_seq] = 1
     # compute similarities to query
+    # match_umi_well_seq_counts_hash = collections.Counter(match_umi_well_seq_counts.values())
+    # print(f'match_umi_well_seq_counts_hash: {match_umi_well_seq_counts_hash}')
+    # for match_umi_well_seq in match_umi_well_seq_counts:
+    #   print(query_umi_well_seq, self.get_ngram_histogram(query_umi_well_seq))
+    #   print(match_umi_well_seq, self.get_ngram_histogram(match_umi_well_seq))
+    #   hist_int = histogram_intersection( \
+    #   self.get_ngram_histogram(query_umi_well_seq), \
+    #   self.get_ngram_histogram(match_umi_well_seq))
+    #   print(f'\thist_int: {hist_int}')
     match_similarities = [(match_umi_well_seq, \
       histogram_intersection( \
-      ReadNgramHash.get_ngram_histogram(query_umi_well_seq, ReadNgramHash.ngram_length), \
-      ReadNgramHash.get_ngram_histogram(match_umi_well_seq, ReadNgramHash.ngram_length)) \
+      self.get_ngram_histogram(query_umi_well_seq), \
+      self.get_ngram_histogram(match_umi_well_seq)) \
       ) for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
+    # print(f'match_similarities: {match_similarities}')
     final_matches = [(match_umi_well_seq, similarity) for (match_umi_well_seq, similarity) in match_similarities if similarity > min_similarity]
     if sort_result:
       final_matches = sorted(final_matches, key = lambda match : match[1], reverse = True)
