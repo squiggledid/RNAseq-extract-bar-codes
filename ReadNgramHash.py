@@ -167,11 +167,11 @@ def seq_target_query(query_seq, target_seq, expected_pos, max_pos_miss = 6, dist
   best_pos = None
   best_dist = len(query_seq)
   if max_pos_miss > 0:
-    positions = range(max(0, expected_pos - max_pos_miss), min(len(target_seq), expected_pos + max_pos_miss))
+    positions = range(max(0, expected_pos - max_pos_miss), min(len(target_seq) - len(query_seq), expected_pos + max_pos_miss))
   else:
     positions = [expected_pos]
   print(positions)
-  for pos in positions: # NB. It's the caller's reponsibility to make sure that target_seq is long enough for this
+  for pos in positions:
     dist = dist_measure(query_seq, target_seq[pos:pos + len(query_seq)])
     if dist < best_dist:
       best_pos = pos
