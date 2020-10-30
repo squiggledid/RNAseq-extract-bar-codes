@@ -178,10 +178,11 @@ for umi_well_seq in sorted_umi_well_seqs:
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
   if umi_well_seq in fastq_well_id_hash:
-    print(f'{query_num}. Summary: {highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+    prefix = f'{query_num}. Query: '
+    print(f'{prefix}{highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
   else:
-    print(f'{query_num}. Summary: {umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
-  padding_len = len(f'{query_num}. Summary: ')
+    print(f'{prefix}{umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+  padding_len = len(prefix)
   for match in ngram_matches:
     if match[0] in fastq_well_id_hash:
       print(f'{" "*padding_len}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0]):5} {fastq_well_id_hash[match[0]][0]} (sim.: {match[1]})')
