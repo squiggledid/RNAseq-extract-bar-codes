@@ -167,7 +167,7 @@ def seq_target_query(query_seq,  target_seq, expected_pos, max_pos_miss = 6, dis
   best_pos = None
   best_dist = len(query_seq)
   if max_pos_miss > 0:
-    positions = range(expected_pos - max_pos_miss, expected_pos + max_pos_miss)
+    positions = range(max(o, expected_pos - max_pos_miss), min(self.seq_length, expected_pos + max_pos_miss))
   else:
     positions = [expected_pos]
   for pos in positions: # NB. It's the caller's reponsibility to make sure that target_seq is long enough for this
