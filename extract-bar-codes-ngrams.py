@@ -124,7 +124,7 @@ else:
     best_pos = None
     best_dist = FastqReadData.well_id_length
     for well_id in well_ids:
-      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset)
+      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset, dist_measure = Levenshtein.distance)
       if this_dist < best_dist:
         best_pos = this_pos
         best_dist = this_dist
