@@ -190,7 +190,7 @@ for umi_well_seq in sorted_umi_well_seqs:
   sq.log(f'Checking {umi_well_seq} against {exclude_seq}...')
   best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seq, umi_well_seq, \
     expected_pos = 0, max_pos_miss = len(umi_well_seq), dist_measure = Levenshtein.distance)
-  print(best_exclude_seq_match_pos, best_exclude_seq_match_dist)
+  print(f'best_exclude_seq_match_pos, best_exclude_seq_match_dist: {best_exclude_seq_match_pos, best_exclude_seq_match_dist}')
   if best_exclude_seq_match_dist < min_exclude_dist:
     print('Skipping due to match with exclude_seq')
     continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
@@ -199,21 +199,31 @@ for umi_well_seq in sorted_umi_well_seqs:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
   else:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
+  num_total_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches])
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
-  # check if most of the matches have good well_ids
+  ### check if most of the matches have good well_ids
   if require_good_well_ids:
-    match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], num_ngram_matches) for match_umi_well_seq, num_ngram_matches in ngram_matches]
-    well_id_dist_counts = {dist:0 for dist in range(FastqReadData.well_id_length)}
+    match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], fastq_read_ngrams.num_reads(match_umi_well_seq)) for match_umi_well_seq, num_ngram_matches in ngram_matches]
+    match_well_ids = list(set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts))
+    well_id_dist_counts = {match_well_id:{} for match_well_id in match_well_ids}
+    for well_id_dist_count in well_id_dist_counts:
+      well_id_dist_counts[well_id_dist_count] = {dist:0 for dist in range(FastqReadData.well_id_length)}
     for match_well_id_and_count in match_well_ids_and_counts:
-      well_id_dist_counts[match_well_id_and_count[0][2]] += match_well_id_and_count[1]
-    exact_match_well_id_frac = well_id_dist_counts[0]/sum(well_id_dist_counts.values())
-    print(exact_match_well_id_frac)
+      well_id_dist_counts[match_well_id_and_count[0][0]][match_well_id_and_count[0][2]] += match_well_id_and_count[1]
+    # find the distance with the maximum count for each matched well_id
+    max_dist_counts = [(well_id, dist, well_id_dist_counts[well_id][dist]) for well_id, dist in \
+      [(well_id, max(well_id_dist_counts[well_id], key = lambda dist: well_id_dist_counts[well_id][dist])) for well_id in well_id_dist_counts] ]
+    mode_well_id, mode_well_id_dist, mode_well_id_count = max(max_dist_counts, key = lambda max_dist_count: max_dist_count[2])
+    if mode_well_id_dist == 0:
+      exact_match_well_id_frac = mode_well_id_count/num_total_matches
+    else:
+      exact_match_well_id_frac = 0
+    print(f'Fraction of exact well_id matches: {exact_match_well_id_frac}')
     if exact_match_well_id_frac < min_exact_match_well_id_frac:
       print(f'Skipping: exact_match_well_id_frac = {exact_match_well_id_frac}')
       continue
   # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
-  num_total_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches])
   num_exact_matches = fastq_read_ngrams.num_reads(umi_well_seq)
   num_inexact_matches = num_total_matches - num_exact_matches
   prefix = f'{query_num}. Query: '
