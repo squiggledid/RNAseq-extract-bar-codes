@@ -200,18 +200,25 @@ for umi_well_seq in sorted_umi_well_seqs:
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
   # # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
-  num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
+  num_total_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches])
+  num_exact_matches = fastq_read_ngrams.num_reads(umi_well_seq)
+  num_inexact_matches = num_total_matches - num_exact_matches
   prefix = f'{query_num}. Query: '
+  suffix = f'  Exact: {num_exact_matches} Inexact: {num_inexact_matches}'
   if umi_well_seq in fastq_well_id_hash:
-    print(f'{prefix}{highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+    umi_well_seq_string = highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])
   else:
-    print(f'{prefix}{umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
+    umi_well_seq_string = umi_well_seq
+  print(f'{prefix}{umi_well_seq_string}{suffix}')
   padding_len = len(prefix)
   for match in ngram_matches:
     if match[0] in fastq_well_id_hash:
-      print(f'{" "*padding_len}{highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])}: {fastq_read_ngrams.num_reads(match[0]):5} {fastq_well_id_hash[match[0]][0]} (sim.: {match[1]})')
+      match_umi_well_seq_string = highlight_well_id(match[0], fastq_well_id_hash[match[0]][1], fastq_well_id_hash[match[0]][2])
+      well_id_string = fastq_well_id_hash[match[0]][0]
     else:
-      print(f'{" "*padding_len}{match[0]}: {fastq_read_ngrams.num_reads(match[0]):5}{" "*(FastqReadData.well_id_length + 1)} (sim.: {match[1]})')
+      match_umi_well_seq_string = match[0]
+      well_id_string = f'{" "*(FastqReadData.well_id_length + 1)}'
+    print(f'{" "*padding_len}{match_umi_well_seq_string}: {fastq_read_ngrams.num_reads(match[0]):5} {well_id_string} (sim.: {match[1]})')
   query_num += 1
 
 
