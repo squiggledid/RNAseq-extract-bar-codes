@@ -178,11 +178,20 @@ print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(
 
 ### Tests
 use_histogram_intersection = True
+exclude_seq = 'GACCATTTCACAGATC' # characteristic of the primer dimer problem?
+min_exclude_dist = 2
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
 # find matchs for all umi_well_seqs
 query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
+  sq.log(f'Checking {umi_well_seq} against {exclude_seq}...')
+  best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seq, umi_well_seq, \
+    expected_pos = 0, max_pos_miss = len(umi_well_seq), dist_measure = Levenshtein.distance)
+  print(best_exclude_seq_match_pos, best_exclude_seq_match_dist)
+  if best_exclude_seq_match_dist < min_exclude_dist:
+    print("Skipping...")
+    continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
   sq.log(f'Querying with {umi_well_seq}...')
   if use_histogram_intersection:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
