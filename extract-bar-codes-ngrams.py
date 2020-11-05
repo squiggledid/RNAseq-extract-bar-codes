@@ -53,6 +53,11 @@ else:
   well_ids = []
   known_well_id_counts_hash = {}
 
+### TODO these should come from a configuration file
+exclude_seq = 'GACCATTTCACAGATC' # characteristic of the primer dimer problem?
+min_exclude_dist = 2
+###
+
 ngram_length = ReadNgramHash(0).ngram_length # create a dummy object so we can access default ngram_length
 # ngram_length = 4
 ### Read FASTQ reads
@@ -69,6 +74,8 @@ else:
   ignore_Ns = True
   n_read = 0
   n_skipped = 0
+  n_excluded = 0
+  excluded_umi_well_seqs = {}
   report_every = 100000
   max_to_read = None # None for no limit :)
   # max_to_read = 100000 # For testing
@@ -89,18 +96,30 @@ else:
       if plus_line[0] != '+':
         sys.exit("Expected third line of a read, beginning with '+'. '" + read_id_line[0] + "' seen. Exiting.")
       quality: str = fastq_file.readline().decode('ascii').rstrip()
-      # bail out now if we're ignoring Ns in the IDs, and there is one
-      if ignore_Ns and ('N' in sequence[FastqReadData.umi_start:umi_well_seq_end]):
-        n_skipped += 1
-        continue
       # create a FastqReadData object
       fastq_read = FastqReadData(read_id_line, sequence, quality)
-      # # add to ngram hash
+      # bail out if we're ignoring Ns in the IDs, and there is one
+      if ignore_Ns and ('N' in fastq_read.umi_well_seq):
+        n_skipped += 1
+        continue
+      # bail out if there's a sequence to exclude and this read matches
+      if exclude_seq != None:
+        if fastq_read.umi_well_seq in excluded_umi_well_seqs: # no need to do the expensive search again if we've already seen it
+          n_excluded += 1
+          continue
+        best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seq, fastq_read.umi_well_seq, \
+          expected_pos = 0, max_pos_miss = FastqReadData.seq_length, dist_measure = Levenshtein.distance)
+        if best_exclude_seq_match_dist < min_exclude_dist:
+          excluded_umi_well_seqs[fastq_read.umi_well_seq] = 1
+          n_excluded += 1
+          continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
+      # add to ngram hash
       fastq_read_ngrams.insert(fastq_read)
       # write a progress indicator
       n_read += 1
       if (n_read % report_every) == 0:
-        print(f'%d items read from fastq_filename (%d skipped)' % (n_read, n_skipped))
+        print(f'%d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
+  print(f'Finished: %d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
   
   # save ReadNgramHash data structure with pickle
   sq.log(f'Saving ReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
@@ -180,20 +199,11 @@ print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(
 use_histogram_intersection = True
 require_good_well_ids = True
 min_exact_match_well_id_frac = 0.5
-exclude_seq = 'GACCATTTCACAGATC' # characteristic of the primer dimer problem?
-min_exclude_dist = 2
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
 # find matchs for all umi_well_seqs
 query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
-  sq.log(f'Checking {umi_well_seq} against {exclude_seq}...')
-  best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seq, umi_well_seq, \
-    expected_pos = 0, max_pos_miss = len(umi_well_seq), dist_measure = Levenshtein.distance)
-  print(f'best_exclude_seq_match_pos, best_exclude_seq_match_dist: {best_exclude_seq_match_pos, best_exclude_seq_match_dist}')
-  if best_exclude_seq_match_dist < min_exclude_dist:
-    print('Skipping due to match with exclude_seq')
-    continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
   sq.log(f'Querying with {umi_well_seq}...')
   if use_histogram_intersection:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
