@@ -178,6 +178,8 @@ print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(
 
 ### Tests
 use_histogram_intersection = True
+require_good_well_ids = True
+min_exact_match_well_id_frac = 0.5
 exclude_seq = 'GACCATTTCACAGATC' # characteristic of the primer dimer problem?
 min_exclude_dist = 2
 sq.log(f'Sorting umi_well_seqs')
@@ -190,7 +192,7 @@ for umi_well_seq in sorted_umi_well_seqs:
     expected_pos = 0, max_pos_miss = len(umi_well_seq), dist_measure = Levenshtein.distance)
   print(best_exclude_seq_match_pos, best_exclude_seq_match_dist)
   if best_exclude_seq_match_dist < min_exclude_dist:
-    print("Skipping...")
+    print('Skipping due to match with exclude_seq')
     continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
   sq.log(f'Querying with {umi_well_seq}...')
   if use_histogram_intersection:
@@ -198,7 +200,18 @@ for umi_well_seq in sorted_umi_well_seqs:
   else:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
-  # # sort matches by total number of times each inexact match seen
+  # check if most of the matches have good well_ids
+  if require_good_well_ids:
+    match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], num_ngram_matches) for match_umi_well_seq, num_ngram_matches in ngram_matches]
+    well_id_dist_counts = {dist:0 for dist in range(FastqReadData.well_id_length)}
+    for match_well_id_and_count in match_well_ids_and_counts:
+      well_id_dist_counts[match_well_id_and_count[0][2]] += match_well_id_and_count[1]
+    exact_match_well_id_frac = well_id_dist_counts[0]/sum(well_id_dist_counts.values())
+    print(exact_match_well_id_frac)
+    if exact_match_well_id_frac < min_exact_match_well_id_frac:
+      print(f'Skipping: exact_match_well_id_frac = {exact_match_well_id_frac}')
+      continue
+  # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_total_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches])
   num_exact_matches = fastq_read_ngrams.num_reads(umi_well_seq)
