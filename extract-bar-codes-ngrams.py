@@ -53,9 +53,11 @@ else:
   well_ids = []
   known_well_id_counts_hash = {}
 
+ngram_length = ReadNgramHash(0).ngram_length # create a dummy object so we can access default ngram_length
+# ngram_length = 4
 ### Read FASTQ reads
 fastq_read_ngrams = ReadNgramHash(FastqReadData.seq_length) # create an object so we can access the ngram_length
-fastq_read_ngram_hash_filename = f'{fastq_filename}_ReadNgramHash_{fastq_read_ngrams.ngram_length}_{FastqReadData.umi_well_padding}.pkl'
+fastq_read_ngram_hash_filename = f'{fastq_filename}_ReadNgramHash_{ngram_length}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_read_ngram_hash_filename):
   sq.log(f'Reading data from {fastq_read_ngram_hash_filename}...')
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'rb')
@@ -73,7 +75,7 @@ else:
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
   umi_well_seq_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
-  fastq_read_ngrams = ReadNgramHash(FastqReadData.seq_length);
+  fastq_read_ngrams = ReadNgramHash(seq_length = FastqReadData.seq_length, ngram_length = ngram_length);
   with gzip.open(fastq_filename, 'r') as fastq_file:
     while (max_to_read == None) or (n_read < max_to_read): # Loop until we don't find another read_id_line, or have reached max_to_read
       read_id_line: str = fastq_file.readline().decode('ascii').rstrip()
@@ -107,7 +109,7 @@ else:
   fastq_read_ngram_hash_file.close()
 
 ### Load or build well_id hash
-max_well_id_offset = 20
+max_well_id_offset = 6
 max_dist = 2
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
@@ -124,7 +126,7 @@ else:
     best_pos = None
     best_dist = FastqReadData.well_id_length
     for well_id in well_ids:
-      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset, dist_measure = Levenshtein.distance)
+      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset) # , dist_measure = Levenshtein.distance)
       if this_dist < best_dist:
         best_pos = this_pos
         best_dist = this_dist
@@ -163,22 +165,35 @@ print(f'Minimum well_id Levenshtein distance:  {np.min(well_id_distances)}')
 print('Levenshtein distance distribution:')
 print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(well_id_distance_counts)))
 
+### See if there is any point to doing histogram intersection with this data
+# list_of_bin_counts_lists = [list(ngram_hash.values()) for ngram_hash in fastq_read_ngrams.ngram_histogram_cache.values()]
+# bin_count_counts = collections.Counter(sq.flatten(list_of_bin_counts_lists))
+# print(bin_count_counts)
+# for 6-grams, and well_padding of 22, we get:
+# Counter({1: 26296303, 2: 130726, 3: 5821, 4: 1916, 5: 1853, 6: 747, 8: 399, 7: 368, 9: 169, 35: 93, 10: 84, 29: 73, 30: 64, 31: 48, 36: 45, 33: 44, 34: 43, 11: 31, 32: 29, 12: 23, 25: 21, 27: 19, 28: 19, 13: 18, 23: 17, 24: 16, 26: 14, 37: 13, 20: 12, 19: 9, 15: 9, 18: 8, 21: 8, 17: 7, 16: 7, 14: 5, 22: 4, 38: 4})
+# for 4-grams, and well_padding of 22, we get:
+# Counter({1: 23341910, 2: 1935512, 3: 143798, 4: 35539, 5: 10486, 6: 4115, 7: 2297, 8: 1948, 9: 1210, 10: 896, 11: 620, 12: 395, 13: 249, 14: 131, 33: 112, 15: 103, 37: 93, 34: 76, 35: 48, 38: 45, 16: 45, 36: 44, 29: 34, 31: 25, 32: 25, 30: 25, 17: 23, 18: 18, 19: 15, 39: 13, 25: 13, 24: 12, 22: 11, 23: 9, 27: 9, 20: 8, 28: 8, 26: 7, 21: 5, 40: 4})
+# ... so perhaps it is worth it. Will have to check to see how often, if even, it causes matches to be excluded
 # quit()
 
 ### Tests
-
+use_histogram_intersection = True
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
 # find matchs for all umi_well_seqs
 query_num = 1
 for umi_well_seq in sorted_umi_well_seqs:
   sq.log(f'Querying with {umi_well_seq}...')
-  ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
+  if use_histogram_intersection:
+    ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
+  else:
+    ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
+  print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
   # # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_inexact_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq != umi_well_seq])
+  prefix = f'{query_num}. Query: '
   if umi_well_seq in fastq_well_id_hash:
-    prefix = f'{query_num}. Query: '
     print(f'{prefix}{highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')
   else:
     print(f'{prefix}{umi_well_seq}  Exact: {fastq_read_ngrams.num_reads(umi_well_seq)} Inexact: {num_inexact_matches}')

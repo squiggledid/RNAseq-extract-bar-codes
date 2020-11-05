@@ -22,6 +22,9 @@ class ReadNgramHash:
     self.umi_well_seq_hash = {}
     self.ngram_hash = {}
     self.ngram_histogram_cache = {}
+    # testing
+    self.hist_match_diff = 0
+    self.num_hist_ints = 0
 
   def __str__(self):
     import collections
@@ -75,8 +78,8 @@ class ReadNgramHash:
       self.ngram_histogram_cache[umi_well_seq] = ngram_histogram
     return(self.ngram_histogram_cache[umi_well_seq])
     
-  def umi_well_seq_query(self, query_umi_well_seq, min_hist_int = 0.8, sort_result = False):
-    min_similarity = 0.8*(self.seq_length - self.ngram_length)
+  def umi_well_seq_query(self, query_umi_well_seq, min_similarity_fraction = 0.8, sort_result = False):
+    min_similarity = min_similarity_fraction*(self.seq_length - self.ngram_length)
     # build a hash of matches
     match_umi_well_seq_counts = {}
     for offset in range(self.seq_length - self.ngram_length):
@@ -87,16 +90,27 @@ class ReadNgramHash:
         else:
           match_umi_well_seq_counts[match_umi_well_seq] = 1
     # compute similarities to query
+    matches = [(match_umi_well_seq, match_umi_well_seq_counts[match_umi_well_seq]) \
+      for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
+    if sort_result:
+      matches = sorted(matches, key = lambda match : match[1], reverse = True)
+    return(matches)
+
+  def umi_well_seq_query_with_histogram_intersection(self, query_umi_well_seq, min_similarity_fraction = 0.8, sort_result = False):
+    min_similarity = min_similarity_fraction*(self.seq_length - self.ngram_length)
+    preliminary_matches = self.umi_well_seq_query(query_umi_well_seq, min_similarity_fraction = min_similarity_fraction, sort_result = False) # Don't want to sort preliminary matches, no matter what.
     match_similarities = [(match_umi_well_seq, \
       histogram_intersection( \
       self.get_ngram_histogram(query_umi_well_seq), \
       self.get_ngram_histogram(match_umi_well_seq)) \
-      ) for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
+      ) for match_umi_well_seq, match_umi_well_seq_count in preliminary_matches]
     final_matches = [(match_umi_well_seq, similarity) for (match_umi_well_seq, similarity) in match_similarities if similarity > min_similarity]
+    self.num_hist_ints += len(preliminary_matches)
+    self.hist_match_diff += len(preliminary_matches) - len(final_matches)
     if sort_result:
       final_matches = sorted(final_matches, key = lambda match : match[1], reverse = True)
     return(final_matches)
-          
+    
   def seq_ngrams_query(self, query_seq, max_mismatch = 2):
     '''
     Return a list of tuples of mqtches, each with a reference to a read that contains the
@@ -121,22 +135,14 @@ class ReadNgramHash:
     for match_umi_well_seq, offsets in match_umi_well_seqs.items():
       if (num_ngrams - len(offsets) <= max_mismatch):
         sorted_match_offsets = sorted(offsets.keys())
-        # print(query_seq)
-        # print(the_read.umi_well_seq)
-        # print('\n'.join([f'{match_offset}: {offsets[match_offset]}' for match_offset in sorted_match_offsets]))
         best_run = _longest_consecutive_run(sorted_match_offsets)
         if best_run == None:
           continue
-        # print(best_run)
-        # print(offsets[sorted_match_offsets[_longest_consecutive_run(sorted_match_offsets)]])
         best_match_start = sorted_match_offsets[best_run] - offsets[sorted_match_offsets[_longest_consecutive_run(sorted_match_offsets)]]
-        # print(f'best_match_start: {best_match_start}')
         if best_match_start > self.seq_length - len(query_seq) or best_match_start < 0:
           continue
         best_match_dist = Levenshtein.hamming(query_seq, match_umi_well_seq[best_match_start:best_match_start + len(query_seq)])
-        # print(f'the_read: {the_read}\nbest_match_start: {best_match_start}\nbest_match_dist: {best_match_dist}')
         final_matches.append((match_umi_well_seq, best_match_start, best_match_dist))
-        # print('#########')
     return(final_matches)
     
 def histogram_intersection(hist1, hist2):
@@ -175,7 +181,7 @@ def seq_target_query(query_seq, target_seq, expected_pos, max_pos_miss = 6, dist
     if dist < best_dist:
       best_pos = pos
       best_dist = dist
-      if dist == 0: # no need to continue if we've found a perfect match
+      if dist == 0: # no need to continue if we've found a perfect match TODO consider weighting dist_measure vs miss in pos?
         break
   return (best_pos, best_dist)
 
