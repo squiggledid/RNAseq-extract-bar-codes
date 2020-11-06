@@ -201,20 +201,36 @@ require_good_well_ids = True
 min_exact_match_well_id_frac = 0.5
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
+num_umi_well_seqs = len(sorted_umi_well_seqs)
 # find matchs for all umi_well_seqs
 query_num = 1
+matched_umi_well_seq = {} # hash we will use the exclude items already matched
 for umi_well_seq in sorted_umi_well_seqs:
+  print(f'num umi_well_seqs seen: {len(matched_umi_well_seq)}/{num_umi_well_seqs}')
+  if umi_well_seq in matched_umi_well_seq:
+    print(f'Skipping {umi_well_seq}. Already seen')
+    continue # many will already have been matches to earlier queries
   sq.log(f'Querying with {umi_well_seq}...')
   if use_histogram_intersection:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
   else:
     ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
+  # remove matches we have already seen
+  ngram_matches = [(match_umi_well_seq, num_ngram_matches) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq not in matched_umi_well_seq]
+  # mark remaining matches as seen
+  matched_umi_well_seq.update({match_umi_well_seq:1 for match_umi_well_seq, num_ngram_matches in ngram_matches})
   num_total_matches = sum([fastq_read_ngrams.num_reads(match_umi_well_seq) for match_umi_well_seq, num_ngram_matches in ngram_matches])
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
+  print(f'num_total_matches: {num_total_matches}')
   ### check if most of the matches have good well_ids
   if require_good_well_ids:
+    if not umi_well_seq in fastq_well_id_hash:
+      print(f'Query {umi_well_seq} not in fastq_well_id_hash')
     match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], fastq_read_ngrams.num_reads(match_umi_well_seq)) \
       for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq in fastq_well_id_hash] # must check key, as reads without a good enough well_id match don't make it into fastq_well_id_hash
+    if len(match_well_ids_and_counts) == 0:
+      print(f'Skipping: no matches in fastq_well_id_hash')
+      continue
     match_well_ids = list(set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts))
     well_id_dist_counts = {match_well_id:{} for match_well_id in match_well_ids}
     for well_id_dist_count in well_id_dist_counts:
