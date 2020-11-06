@@ -130,7 +130,7 @@ else:
 ### Load or build well_id hash
 max_well_id_offset = 6
 max_dist = 2
-fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}.pkl'
+fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
   sq.log(f'Reading data from {fastq_well_id_hash_filename}...')
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'rb')
