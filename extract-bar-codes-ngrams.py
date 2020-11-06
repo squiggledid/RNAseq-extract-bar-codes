@@ -213,7 +213,8 @@ for umi_well_seq in sorted_umi_well_seqs:
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
   ### check if most of the matches have good well_ids
   if require_good_well_ids:
-    match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], fastq_read_ngrams.num_reads(match_umi_well_seq)) for match_umi_well_seq, num_ngram_matches in ngram_matches]
+    match_well_ids_and_counts = [(fastq_well_id_hash[match_umi_well_seq], fastq_read_ngrams.num_reads(match_umi_well_seq)) \
+      for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq in fastq_well_id_hash] # must check key, as reads without a good enough well_id match don't make it into fastq_well_id_hash
     match_well_ids = list(set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts))
     well_id_dist_counts = {match_well_id:{} for match_well_id in match_well_ids}
     for well_id_dist_count in well_id_dist_counts:
