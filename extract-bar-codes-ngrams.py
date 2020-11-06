@@ -23,20 +23,27 @@ from ReadNgramHash import ReadNgramHash, seq_target_query
 ###############################################################################
 
 mismatch_colours = (colorama.Fore.GREEN, colorama.Fore.YELLOW, colorama.Fore.MAGENTA, colorama.Fore.RED)
+
 def highlight_well_id(umi_well_seq, position, mismatch):
   mismatch = min(mismatch, 3) # >2 should never happen as presently constructed
   return(f'{umi_well_seq[0:position]}{mismatch_colours[mismatch]}{umi_well_seq[position:position + FastqReadData.well_id_length]}{colorama.Style.RESET_ALL}{umi_well_seq[position + FastqReadData.well_id_length:]}')
 
 ###############################################################################
-if (len(sys.argv)) < 2 or (len(sys.argv) > 3):
-  sys.exit('A single command line argument specifying the fastq.gz file to process is required, followed by an optional argument specifying experimental metadata. Exiting.')
+if (len(sys.argv)) < 2 or (len(sys.argv) > 4):
+  sys.exit('A single command line argument specifying the fastq.gz file to process is required, followed by an optional argument specifying experimental metadata, followed by an optional argument specifiying the min_similarity_fraction. Exiting.')
 # first and only command line argument is the fastq.gz file to process
 fastq_filename = sys.argv[1]
-if len(sys.argv) == 3:
+if len(sys.argv) >= 3:
   metadata_filename = sys.argv[2]
 else:
   metadata_filename = None
-
+if len(sys.argv) == 4:
+  min_similarity_fraction = float(sys.argv[3])
+  if min_similarity_fraction < 1e-1:
+    sys.exit(f'min_similarity_fraction too small: {min_similarity_fraction}')
+else:
+  min_similarity_fraction = 0.7
+  
 ### Read metadata
 
 if os.path.exists(metadata_filename):
@@ -212,9 +219,9 @@ for umi_well_seq in sorted_umi_well_seqs:
     continue # many will already have been matches to earlier queries
   sq.log(f'Querying with {umi_well_seq}...')
   if use_histogram_intersection:
-    ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq)
+    ngram_matches = fastq_read_ngrams.umi_well_seq_query_with_histogram_intersection(umi_well_seq, min_similarity_fraction = min_similarity_fraction)
   else:
-    ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq)
+    ngram_matches = fastq_read_ngrams.umi_well_seq_query(umi_well_seq, min_similarity_fraction = min_similarity_fraction)
   # remove matches we have already seen
   ngram_matches = [(match_umi_well_seq, num_ngram_matches) for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq not in matched_umi_well_seq]
   # mark remaining matches as seen
@@ -223,6 +230,7 @@ for umi_well_seq in sorted_umi_well_seqs:
   print(f'Num. times histogram intersection made a difference: {fastq_read_ngrams.hist_match_diff}/{fastq_read_ngrams.num_hist_ints}')
   print(f'num_total_matches: {num_total_matches}')
   ### check if most of the matches have good well_ids
+  mode_well_id = None
   if require_good_well_ids:
     if not umi_well_seq in fastq_well_id_hash:
       print(f'Query {umi_well_seq} not in fastq_well_id_hash')
@@ -253,8 +261,12 @@ for umi_well_seq in sorted_umi_well_seqs:
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
   num_exact_matches = fastq_read_ngrams.num_reads(umi_well_seq)
   num_inexact_matches = num_total_matches - num_exact_matches
+  if mode_well_id != None:
+    mode_well_id_string = highlight_well_id(mode_well_id, 0, 0)
+  else:
+    mode_well_id_string = f'{" "*(FastqReadData.well_id_length + 1)}'
   prefix = f'{query_num}. Query: '
-  suffix = f'  Exact: {num_exact_matches} Inexact: {num_inexact_matches}'
+  suffix = f'  Mode Well ID: {mode_well_id_string} Exact: {num_exact_matches} Inexact: {num_inexact_matches}'
   if umi_well_seq in fastq_well_id_hash:
     umi_well_seq_string = highlight_well_id(umi_well_seq, fastq_well_id_hash[umi_well_seq][1], fastq_well_id_hash[umi_well_seq][2])
   else:
