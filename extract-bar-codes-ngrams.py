@@ -61,8 +61,8 @@ else:
   known_well_id_counts_hash = {}
 
 ### TODO these should come from a configuration file
-exclude_seq = 'GACCATTTCACAGATC' # characteristic of the primer dimer problem?
-min_exclude_dist = 2
+exclude_seqs = {'RdRP':'GACCATTTCACAGATC', 'Egene':'ACGCTATTAACTATTAACGTACCTGT', 'GAPDH':'CTTCTCATGGTTCACACCCA'} # primer dimer black-lisr
+min_exclude_frac = 0.8
 ###
 
 ngram_length = ReadNgramHash(0).ngram_length # create a dummy object so we can access default ngram_length
@@ -82,9 +82,12 @@ else:
   n_read = 0
   n_skipped = 0
   n_excluded = 0
-  excluded_umi_well_seqs = {}
   report_every = 100000
   max_to_read = None # None for no limit :)
+  excluded_seqs = {}
+  excluded_seq_counts = {seq_name:0 for seq_name in exclude_seqs}
+  min_exclude_dists = {seq_name:round((1 - min_exclude_frac)*len(exclude_seqs[seq_name])) for seq_name in exclude_seqs}
+  seq_length_to_check = FastqReadData.seq_length + max([len(exclude_seqs[seq_name]) for seq_name in exclude_seqs]) # seems a reasonable starting point
   # max_to_read = 100000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
@@ -110,23 +113,27 @@ else:
       if ignore_Ns and ('N' in fastq_read.umi_well_seq):
         n_skipped += 1
         continue
-      # bail out if there's a sequence to exclude and this read matches
-      if exclude_seq != None:
-        if fastq_read.umi_well_seq in excluded_umi_well_seqs: # no need to do the expensive search again if we've already seen it
-          n_excluded += 1
+      # bail out if there's a match to a black-listed sequence
+      if fastq_read.umi_well_seq in excluded_seqs: # no need to do the expensive search again if we've already seen it
+          excluded_seq_counts[excluded_seqs[fastq_read.umi_well_seq]] += 1
           continue
-        best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seq, fastq_read.umi_well_seq, \
-          expected_pos = 0, max_pos_miss = FastqReadData.seq_length, dist_measure = Levenshtein.distance)
-        if best_exclude_seq_match_dist < min_exclude_dist:
-          excluded_umi_well_seqs[fastq_read.umi_well_seq] = 1
-          n_excluded += 1
-          continue # skip umi_well_seqs that contain a sequence sufficiently close to the exclude_seq
+      exclude_seq_seen = False
+      for seq_name in exclude_seqs:
+        best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seqs[seq_name], sequence, \
+          expected_pos = 0, max_pos_miss = seq_length_to_check, dist_measure = Levenshtein.distance) 
+        if best_exclude_seq_match_dist < min_exclude_dists[seq_name]:
+          excluded_seqs[fastq_read.umi_well_seq] = seq_name
+          excluded_seq_counts[seq_name] += 1
+          exclude_seq_seen = True
+          break
+      if exclude_seq_seen:
+        continue # skip umi_well_seqs that contain a sequence sufficiently close to an exclude_seq
       # add to ngram hash
       fastq_read_ngrams.insert(fastq_read)
       # write a progress indicator
       if (n_read % report_every) == 0:
-        print(f'%d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
-  print(f'Finished: %d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
+        print(f'{n_read} items read from {fastq_filename}. {n_skipped} skipped, exclusions: {excluded_seq_counts})')
+  print(f'Finished: {n_read} items read from {fastq_filename}. {n_skipped} skipped, exclusions: {excluded_seq_counts}')
   
   # save ReadNgramHash data structure with pickle
   sq.log(f'Saving ReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
@@ -239,15 +246,17 @@ for umi_well_seq in sorted_umi_well_seqs:
     if len(match_well_ids_and_counts) == 0:
       print(f'Skipping: no matches in fastq_well_id_hash')
       continue
-    match_well_ids = list(set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts))
+    match_well_ids = set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts)
+    # initialise hash of hashes 
     well_id_dist_counts = {match_well_id:{} for match_well_id in match_well_ids}
     for well_id_dist_count in well_id_dist_counts:
       well_id_dist_counts[well_id_dist_count] = {dist:0 for dist in range(FastqReadData.well_id_length)}
+    # compute counts
     for match_well_id_and_count in match_well_ids_and_counts:
       well_id_dist_counts[match_well_id_and_count[0][0]][match_well_id_and_count[0][2]] += match_well_id_and_count[1]
     # find the distance with the maximum count for each matched well_id
     max_dist_counts = [(well_id, dist, well_id_dist_counts[well_id][dist]) for well_id, dist in \
-      [(well_id, max(well_id_dist_counts[well_id], key = lambda dist: well_id_dist_counts[well_id][dist])) for well_id in well_id_dist_counts] ]
+      [ (well_id, max(well_id_dist_counts[well_id], key = lambda dist: well_id_dist_counts[well_id][dist])) for well_id in well_id_dist_counts] ]
     mode_well_id, mode_well_id_dist, mode_well_id_count = max(max_dist_counts, key = lambda max_dist_count: max_dist_count[2])
     if mode_well_id_dist == 0:
       exact_match_well_id_frac = mode_well_id_count/num_total_matches
@@ -282,5 +291,6 @@ for umi_well_seq in sorted_umi_well_seqs:
       well_id_string = f'{" "*(FastqReadData.well_id_length + 1)}'
     print(f'{" "*padding_len}{match_umi_well_seq_string}: {fastq_read_ngrams.num_reads(match[0]):5} {well_id_string} (sim.: {match[1]})')
   query_num += 1
+print(f'Finished: num umi_well_seqs seen: {len(matched_umi_well_seq)}/{num_umi_well_seqs}')
 
 
