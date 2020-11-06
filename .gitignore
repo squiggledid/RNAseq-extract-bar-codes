@@ -156,3 +156,5 @@ extract-bar-codes-incremental-cluster-silly.py
 NgramBuildingOutput.txt
 
 *.out
+
+Index Summaries.txt

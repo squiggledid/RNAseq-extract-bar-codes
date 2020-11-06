@@ -15,7 +15,7 @@ class FastqReadData(ReadData):
   umi_length = 16
   well_id_start = 16
   well_id_length = 8
-  umi_well_padding = 22
+  umi_well_padding = 4
   seq_length = umi_length + well_id_length + umi_well_padding
   
   def __init__(self, read_id, sequence, quality, store_sequence = False, store_quality = False):

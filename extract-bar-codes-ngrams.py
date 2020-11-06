@@ -97,6 +97,7 @@ else:
         sys.exit("Expected third line of a read, beginning with '+'. '" + read_id_line[0] + "' seen. Exiting.")
       quality: str = fastq_file.readline().decode('ascii').rstrip()
       # create a FastqReadData object
+      n_read += 1 # count all valid reads, even though some may be skipped or excluded below
       fastq_read = FastqReadData(read_id_line, sequence, quality)
       # bail out if we're ignoring Ns in the IDs, and there is one
       if ignore_Ns and ('N' in fastq_read.umi_well_seq):
@@ -116,7 +117,6 @@ else:
       # add to ngram hash
       fastq_read_ngrams.insert(fastq_read)
       # write a progress indicator
-      n_read += 1
       if (n_read % report_every) == 0:
         print(f'%d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
   print(f'Finished: %d items read from fastq_filename (%d skipped, %d excluded)' % (n_read, n_skipped, n_excluded))
