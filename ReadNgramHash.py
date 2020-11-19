@@ -49,17 +49,29 @@ class ReadNgramHash:
       else:
         self.umi_well_seq_hash[the_read.umi_well_seq] = 1
       # insert ngrams
-      ngram_histogram = {}
       for offset in range(self.seq_length - self.ngram_length):
         ngram = the_read.umi_well_seq[offset:(offset + self.ngram_length)]
-        if ngram in self.ngram_hash:
-          self.ngram_hash[ngram].append((the_read.umi_well_seq, offset))
+        if not (ngram in self.ngram_hash):
+          self.ngram_hash[ngram] = {the_read.umi_well_seq : [offset]}
         else:
-          self.ngram_hash[ngram] = [(the_read.umi_well_seq, offset)]
+          if the_read.umi_well_seq in self.ngram_hash[ngram]:
+            self.ngram_hash[ngram][the_read.umi_well_seq].append(offset)
+          else:
+            self.ngram_hash[ngram].update({the_read.umi_well_seq : [offset]})
+
       if (self.build_ngram_histogram_cache):
         # Insert the umi_well_seq into the ngram_histogram_cache at build time, so it is saved with the hash before any queries
         self.get_ngram_histogram(the_read.umi_well_seq)
-      
+  
+  def delete(self, umi_well_seq):
+    del self.umi_well_seq_hash[umi_well_seq] # NB the key umi_well_seq *must* have been inserted before this is called
+    for offset in range(self.seq_length - self.ngram_length):
+      ngram = umi_well_seq[offset:(offset + self.ngram_length)]
+      if umi_well_seq in self.ngram_hash[ngram]: # if there were multiple entries for the ngram for the same umi_well_seq, it could already have been deleted
+        del self.ngram_hash[ngram][umi_well_seq]
+        if len(self.ngram_hash[ngram]) == 0:
+          self.ngram_hash[ngram]
+    
   def num_reads(self, umi_well_seq):
     if (self.store_reads):
       return(len(self.umi_well_seq_hash[umi_well_seq]))
@@ -84,11 +96,11 @@ class ReadNgramHash:
     match_umi_well_seq_counts = {}
     for offset in range(self.seq_length - self.ngram_length):
       ngram = query_umi_well_seq[offset:(offset + self.ngram_length)]
-      for match_umi_well_seq, offset in self.ngram_hash[ngram]:
+      for match_umi_well_seq in self.ngram_hash[ngram]:
         if match_umi_well_seq in match_umi_well_seq_counts:
-          match_umi_well_seq_counts[match_umi_well_seq] += 1
+          match_umi_well_seq_counts[match_umi_well_seq] += len(self.ngram_hash[ngram][match_umi_well_seq]) #TODO if we're never going to use the offsets, just make the hash-hash entry a count?
         else:
-          match_umi_well_seq_counts[match_umi_well_seq] = 1
+          match_umi_well_seq_counts[match_umi_well_seq] = len(self.ngram_hash[ngram][match_umi_well_seq])
     # compute similarities to query
     matches = [(match_umi_well_seq, match_umi_well_seq_counts[match_umi_well_seq]) \
       for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
@@ -111,39 +123,24 @@ class ReadNgramHash:
       final_matches = sorted(final_matches, key = lambda match : match[1], reverse = True)
     return(final_matches)
     
-  def seq_ngrams_query(self, query_seq, max_mismatch = 2):
-    '''
-    Return a list of tuples of mqtches, each with a reference to a read that contains the
-    query sequence query_seq, and the postion at which it was found in that read's umi_well_seq
-    '''
-    if len(query_seq) < self.ngram_length:
-      sys.stderr.write(f'Cannot query a ReadNgramHash with a query string shorter than the ngram length ({self.ngram_length})\n')
-    match_umi_well_seqs = {}
-    num_ngrams = len(query_seq) - self.ngram_length + 1
-    for offset in range(num_ngrams):
+  def seq_ngram_query(self, query_seq, min_similarity_fraction = 0.8, sort_result = False):
+    # TODO replace umi_well_seq_query with this - at almost zero cost
+    min_similarity = min_similarity_fraction*(len(query_seq) - self.ngram_length)
+    # build a hash of matches
+    match_umi_well_seq_counts = {}
+    for offset in range(len(query_seq) - self.ngram_length):
       ngram = query_seq[offset:(offset + self.ngram_length)]
-      if ngram in self.ngram_hash:
-        new_matches = self.ngram_hash[ngram]
-      else:
-        new_matches = []
-      for (match_umi_well_seq, match_offset) in new_matches:
-        if match_umi_well_seq in match_the_reads:
-          match_the_reads[match_umi_well_seq].update({match_offset: offset})
+      for match_umi_well_seq in self.ngram_hash[ngram]:
+        if match_umi_well_seq in match_umi_well_seq_counts:
+          match_umi_well_seq_counts[match_umi_well_seq] += len(self.ngram_hash[ngram][match_umi_well_seq]) #TODO if we're never going to use the offsets, just make the hash-hash entry a count?
         else:
-          match_the_reads[match_umi_well_seq] = {match_offset: offset}
-    final_matches = []
-    for match_umi_well_seq, offsets in match_umi_well_seqs.items():
-      if (num_ngrams - len(offsets) <= max_mismatch):
-        sorted_match_offsets = sorted(offsets.keys())
-        best_run = _longest_consecutive_run(sorted_match_offsets)
-        if best_run == None:
-          continue
-        best_match_start = sorted_match_offsets[best_run] - offsets[sorted_match_offsets[_longest_consecutive_run(sorted_match_offsets)]]
-        if best_match_start > self.seq_length - len(query_seq) or best_match_start < 0:
-          continue
-        best_match_dist = Levenshtein.hamming(query_seq, match_umi_well_seq[best_match_start:best_match_start + len(query_seq)])
-        final_matches.append((match_umi_well_seq, best_match_start, best_match_dist))
-    return(final_matches)
+          match_umi_well_seq_counts[match_umi_well_seq] = len(self.ngram_hash[ngram][match_umi_well_seq])
+    # compute similarities to query
+    matches = [(match_umi_well_seq, match_umi_well_seq_counts[match_umi_well_seq]) \
+      for match_umi_well_seq in match_umi_well_seq_counts if match_umi_well_seq_counts[match_umi_well_seq] > min_similarity]
+    if sort_result:
+      matches = sorted(matches, key = lambda match : match[1], reverse = True)
+    return(matches)
     
 def histogram_intersection(hist1, hist2):
   similarity = 0
