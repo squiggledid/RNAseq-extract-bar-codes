@@ -174,8 +174,6 @@ else:
   pickle.dump(fastq_well_id_hash, fastq_well_id_hash_file)
   fastq_well_id_hash_file.close()
 
-quit()
-
 ### Summary 
 print(f'fastq_read_ngrams.umi_well_seq_hash: {len(fastq_read_ngrams.umi_well_seq_hash)} items')        
 print(f'fastq_well_id_hash: {len(fastq_well_id_hash)} items')
