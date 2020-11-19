@@ -84,10 +84,6 @@ else:
   n_excluded = 0
   report_every = 100000
   max_to_read = None # None for no limit :)
-  excluded_seqs = {}
-  excluded_seq_counts = {seq_name:0 for seq_name in exclude_seqs}
-  min_exclude_dists = {seq_name:round((1 - min_exclude_frac)*len(exclude_seqs[seq_name])) for seq_name in exclude_seqs}
-  seq_length_to_check = FastqReadData.seq_length + max([len(exclude_seqs[seq_name]) for seq_name in exclude_seqs]) # seems a reasonable starting point
   # max_to_read = 100000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
@@ -106,35 +102,30 @@ else:
       if plus_line[0] != '+':
         sys.exit("Expected third line of a read, beginning with '+'. '" + read_id_line[0] + "' seen. Exiting.")
       quality: str = fastq_file.readline().decode('ascii').rstrip()
-      # create a FastqReadData object
       n_read += 1 # count all valid reads, even though some may be skipped or excluded below
+      # create a FastqReadData object
       fastq_read = FastqReadData(read_id_line, sequence, quality)
       # bail out if we're ignoring Ns in the IDs, and there is one
       if ignore_Ns and ('N' in fastq_read.umi_well_seq):
         n_skipped += 1
         continue
-      # bail out if there's a match to a black-listed sequence
-      if fastq_read.umi_well_seq in excluded_seqs: # no need to do the expensive search again if we've already seen it
-          excluded_seq_counts[excluded_seqs[fastq_read.umi_well_seq]] += 1
-          continue
-      exclude_seq_seen = False
-      for seq_name in exclude_seqs:
-        best_exclude_seq_match_pos, best_exclude_seq_match_dist = seq_target_query(exclude_seqs[seq_name], sequence, \
-          expected_pos = 0, max_pos_miss = seq_length_to_check, dist_measure = Levenshtein.distance) 
-        if best_exclude_seq_match_dist < min_exclude_dists[seq_name]:
-          excluded_seqs[fastq_read.umi_well_seq] = seq_name
-          excluded_seq_counts[seq_name] += 1
-          exclude_seq_seen = True
-          break
-      if exclude_seq_seen:
-        continue # skip umi_well_seqs that contain a sequence sufficiently close to an exclude_seq
-      # add to ngram hash
       fastq_read_ngrams.insert(fastq_read)
       # write a progress indicator
       if (n_read % report_every) == 0:
-        print(f'{n_read} items read from {fastq_filename}. {n_skipped} skipped, exclusions: {excluded_seq_counts})')
-  print(f'Finished: {n_read} items read from {fastq_filename}. {n_skipped} skipped, exclusions: {excluded_seq_counts}')
+        print(f'{n_read} items read from {fastq_filename}. {n_skipped} reads with Ns skipped)')
+  print(f'Finished: {n_read} items read from {fastq_filename}. {n_skipped} reads with Ns skipped')
   
+  # Removed black-listed sequences. Experiments show that it is faster to do this *after* the index has been built
+  sq.log(f'Removing black-listed sequences...')
+  excluded_seq_counts = {seq_name:0 for seq_name in exclude_seqs}
+  for seq_name in exclude_seqs:
+    print(f'Checking {exclude_seqs[seq_name]}:')
+    exclude_matches = fastq_read_ngrams.seq_ngram_query(exclude_seqs[seq_name], min_similarity_fraction = 0.8)
+    num_matches = sum([fastq_read_ngrams.num_reads(umi_well_seq) for umi_well_seq, offset in exclude_matches])
+    print(f'\t{num_matches} matches found. Deleting them from fastq_read_ngrams hash.')
+    for umi_well_seq, similarity in exclude_matches:
+      fastq_read_ngrams.delete(umi_well_seq)
+
   # save ReadNgramHash data structure with pickle
   sq.log(f'Saving ReadNgramHash to %s...' % fastq_read_ngram_hash_filename)
   fastq_read_ngram_hash_file = open(fastq_read_ngram_hash_filename, 'wb')
