@@ -133,7 +133,7 @@ else:
   fastq_read_ngram_hash_file.close()
 
 ### Load or build well_id hash
-max_well_id_offset = 6
+max_well_id_offset = 4
 max_dist = 2
 fastq_well_id_hash_filename = f'{fastq_filename}_FastqWellIDHash_{max_well_id_offset}_{max_dist}_{FastqReadData.umi_well_padding}.pkl'
 if os.path.exists(fastq_well_id_hash_filename):
@@ -151,13 +151,14 @@ else:
     best_pos_miss = FastqReadData.well_id_length + 1
     best_dist = FastqReadData.well_id_length + 1
     for well_id in well_ids:
-      # if umi_well_seq == 'GAATTTCACGATGGTGACATTGAGCCAAATGT':
+      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset) # , dist_measure = Levenshtein.distance)
+      pos_miss = abs(this_pos - FastqReadData.well_id_start)
+      # if umi_well_seq == 'CATAGTCACTCAGGTCTTGATGGGCAAATCTT':
       #   if best_pos != None:
       #     print(highlight_well_id(umi_well_seq, best_pos, best_dist))
       #   print(f'best_well_id = {best_well_id}, best_pos = {best_pos}, best_pos_miss = {best_pos_miss}, best_dist = {best_dist}')
-      (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset) # , dist_measure = Levenshtein.distance)
-      pos_miss = abs(this_pos - FastqReadData.well_id_start)
-      if (this_dist <= best_dist and pos_miss < best_pos_miss) or (this_dist < best_dist and pos_miss <= best_pos_miss): # TODO consider weighting position over distance
+      #   print(f'well_id = {well_id}, this_pos = {this_pos}, pos_miss = {pos_miss}, this_dist = {this_dist}')
+      if (this_dist <= max_dist) and ((this_dist <= best_dist and pos_miss < best_pos_miss) or (this_dist < best_dist and pos_miss <= best_pos_miss)): # TODO consider weighting position over distance
         best_pos = this_pos
         best_pos_miss = pos_miss
         best_dist = this_dist
@@ -172,6 +173,8 @@ else:
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
   pickle.dump(fastq_well_id_hash, fastq_well_id_hash_file)
   fastq_well_id_hash_file.close()
+
+quit()
 
 ### Summary 
 print(f'fastq_read_ngrams.umi_well_seq_hash: {len(fastq_read_ngrams.umi_well_seq_hash)} items')        
