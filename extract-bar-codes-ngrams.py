@@ -148,17 +148,25 @@ else:
   for umi_well_seq in fastq_read_ngrams.umi_well_seq_hash:
     best_well_id = None
     best_pos = None
-    best_dist = FastqReadData.well_id_length
+    best_pos_miss = FastqReadData.well_id_length + 1
+    best_dist = FastqReadData.well_id_length + 1
     for well_id in well_ids:
+      # if umi_well_seq == 'GAATTTCACGATGGTGACATTGAGCCAAATGT':
+      #   if best_pos != None:
+      #     print(highlight_well_id(umi_well_seq, best_pos, best_dist))
+      #   print(f'best_well_id = {best_well_id}, best_pos = {best_pos}, best_pos_miss = {best_pos_miss}, best_dist = {best_dist}')
       (this_pos, this_dist) = seq_target_query(well_id, umi_well_seq, FastqReadData.well_id_start, max_well_id_offset) # , dist_measure = Levenshtein.distance)
-      if this_dist < best_dist:
+      pos_miss = abs(this_pos - FastqReadData.well_id_start)
+      if (this_dist <= best_dist and pos_miss < best_pos_miss) or (this_dist < best_dist and pos_miss <= best_pos_miss): # TODO consider weighting position over distance
         best_pos = this_pos
+        best_pos_miss = pos_miss
         best_dist = this_dist
         best_well_id = well_id
-        if best_dist <= max_dist:
-          fastq_well_id_hash[umi_well_seq] = (well_id, best_pos, best_dist)
-          if best_dist == 0 and best_pos == FastqReadData.well_id_start:
-            break # no need to try other well_ids if we've found a perfect match
+        if best_dist == 0 and best_pos == FastqReadData.well_id_start:
+          break # no need to try other well_ids if we've found a perfect match
+    if best_dist <= max_dist:
+      fastq_well_id_hash[umi_well_seq] = (best_well_id, best_pos, best_dist)
+
   # save well_id hash data structure
   sq.log(f'Saving fastq_well_id_hash to %s...' % fastq_well_id_hash_filename)
   fastq_well_id_hash_file = open(fastq_well_id_hash_filename, 'wb')
