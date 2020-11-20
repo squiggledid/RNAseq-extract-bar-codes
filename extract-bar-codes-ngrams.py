@@ -87,7 +87,6 @@ else:
   # max_to_read = 100000 # For testing
   if max_to_read and (max_to_read < report_every):
     report_every = max_to_read
-  umi_well_seq_end = FastqReadData.umi_start + FastqReadData.umi_length + FastqReadData.well_id_length + FastqReadData.umi_well_padding - 1
   fastq_read_ngrams = ReadNgramHash(seq_length = FastqReadData.seq_length, ngram_length = ngram_length);
   with gzip.open(fastq_filename, 'r') as fastq_file:
     while (max_to_read == None) or (n_read < max_to_read): # Loop until we don't find another read_id_line, or have reached max_to_read
@@ -212,6 +211,7 @@ print('\n'.join(f'\t{dist}: {well_id_distance_counts[dist]}' for dist in sorted(
 ### Tests
 use_histogram_intersection = True
 require_good_well_ids = True
+delete_matches_from_hash = True
 min_exact_match_well_id_frac = 0.5
 sq.log(f'Sorting umi_well_seqs')
 sorted_umi_well_seqs = sorted(fastq_read_ngrams.umi_well_seq_hash, key = lambda umi_well_seq : fastq_read_ngrams.num_reads(umi_well_seq), reverse = True)#[0:10]
@@ -245,6 +245,8 @@ for umi_well_seq in sorted_umi_well_seqs:
       for match_umi_well_seq, num_ngram_matches in ngram_matches if match_umi_well_seq in fastq_well_id_hash] # must check key, as reads without a good enough well_id match don't make it into fastq_well_id_hash
     if len(match_well_ids_and_counts) == 0:
       print(f'Skipping: no matches in fastq_well_id_hash')
+      for match in ngram_matches:
+        fastq_read_ngrams.delete(match[0])
       continue
     match_well_ids = set(match_well_id_and_count[0][0] for match_well_id_and_count in match_well_ids_and_counts)
     # initialise hash of hashes 
@@ -265,6 +267,8 @@ for umi_well_seq in sorted_umi_well_seqs:
     print(f'Fraction of exact well_id matches: {exact_match_well_id_frac}')
     if exact_match_well_id_frac < min_exact_match_well_id_frac:
       print(f'Skipping: exact_match_well_id_frac = {exact_match_well_id_frac}')
+      for match in ngram_matches:
+        fastq_read_ngrams.delete(match[0])
       continue
   # sort matches by total number of times each inexact match seen
   ngram_matches = sorted(ngram_matches, key = lambda ngram_match : fastq_read_ngrams.num_reads(ngram_match[0]), reverse = True)
@@ -290,6 +294,8 @@ for umi_well_seq in sorted_umi_well_seqs:
       match_umi_well_seq_string = match[0]
       well_id_string = f'{" "*(FastqReadData.well_id_length + 1)}'
     print(f'{" "*padding_len}{match_umi_well_seq_string}: {fastq_read_ngrams.num_reads(match[0]):5} {well_id_string} (sim.: {match[1]})')
+    if delete_matches_from_hash:
+      fastq_read_ngrams.delete(match[0])
   query_num += 1
 print(f'Finished: num umi_well_seqs seen: {len(matched_umi_well_seq)}/{num_umi_well_seqs}')
 
